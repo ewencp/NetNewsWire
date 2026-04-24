@@ -10,11 +10,11 @@
                 <application id="hnw-xV-0zn" sceneMemberID="viewController">
                     <menu key="mainMenu" title="Main Menu" systemMenu="main" id="AYu-sK-qS6">
                         <items>
-                            <menuItem title="NetNewsWire" id="1Xt-HY-uBw">
+                            <menuItem title="NNW Remix" id="1Xt-HY-uBw">
                                 <modifierMask key="keyEquivalentModifierMask"/>
-                                <menu key="submenu" title="NetNewsWire" systemMenu="apple" id="uQy-DD-JDr">
+                                <menu key="submenu" title="NNW Remix" systemMenu="apple" id="uQy-DD-JDr">
                                     <items>
-                                        <menuItem title="About NetNewsWire" id="5kV-Vb-QxS">
+                                        <menuItem title="About NNW Remix" id="5kV-Vb-QxS">
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
                                                 <action selector="showCustomAboutPanel:" target="Voe-Tx-rLC" id="ZQV-QH-KmS"/>
@@ -38,7 +38,7 @@
                                             <menu key="submenu" title="Services" systemMenu="services" id="hz9-B4-Xy5"/>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="4je-JR-u6R"/>
-                                        <menuItem title="Hide NetNewsWire" keyEquivalent="h" id="Olw-nP-bQN">
+                                        <menuItem title="Hide NNW Remix" keyEquivalent="h" id="Olw-nP-bQN">
                                             <connections>
                                                 <action selector="hide:" target="Ady-hI-5gd" id="PnN-Uc-m68"/>
                                             </connections>
@@ -56,7 +56,7 @@
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="kCx-OE-vgT"/>
-                                        <menuItem title="Quit NetNewsWire" keyEquivalent="q" id="4sb-4s-VLi">
+                                        <menuItem title="Quit NNW Remix" keyEquivalent="q" id="4sb-4s-VLi">
                                             <connections>
                                                 <action selector="terminate:" target="Ady-hI-5gd" id="Te7-pn-YzF"/>
                                             </connections>
@@ -617,7 +617,7 @@
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="Help" systemMenu="help" id="F2S-fz-NVQ">
                                     <items>
-                                        <menuItem title="NetNewsWire Help" keyEquivalent="?" id="FKE-Sm-Kum">
+                                        <menuItem title="NNW Remix Help" keyEquivalent="?" id="FKE-Sm-Kum">
                                             <connections>
                                                 <action selector="showHelp:" target="Voe-Tx-rLC" id="WJP-8V-s4K"/>
                                             </connections>
@@ -626,13 +626,6 @@
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
                                                 <action selector="showKeyboardShortcutsWindow:" target="Ady-hI-5gd" id="RXH-ej-Xss"/>
-                                            </connections>
-                                        </menuItem>
-                                        <menuItem isSeparatorItem="YES" id="iyN-Fr-QXC"/>
-                                        <menuItem title="Add NetNewsWire News Feed" id="cmP-uH-mS8">
-                                            <modifierMask key="keyEquivalentModifierMask"/>
-                                            <connections>
-                                                <action selector="addAppNews:" target="Ady-hI-5gd" id="xHC-9j-EpT"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Open Application Support Folder" id="QxZ-DC-21I">
@@ -654,12 +647,6 @@
                                                 <action selector="openReleaseNotes:" target="Ady-hI-5gd" id="7LS-uW-Yp0"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="How To Support NetNewsWire" id="kfC-NQ-g3E">
-                                            <modifierMask key="keyEquivalentModifierMask"/>
-                                            <connections>
-                                                <action selector="openHowToSupport:" target="Ady-hI-5gd" id="SIw-Ug-A4D"/>
-                                            </connections>
-                                        </menuItem>
                                         <menuItem title="GitHub Repository" id="QfD-Xw-sdF">
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
@@ -670,12 +657,6 @@
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
                                                 <action selector="openBugTracker:" target="Ady-hI-5gd" id="fZQ-ng-gIm"/>
-                                            </connections>
-                                        </menuItem>
-                                        <menuItem title="Discourse Forum" id="OKC-FV-V33">
-                                            <modifierMask key="keyEquivalentModifierMask"/>
-                                            <connections>
-                                                <action selector="openDiscourse:" target="Ady-hI-5gd" id="pHL-0j-vVt"/>
                                             </connections>
                                         </menuItem>
                                     </items>
