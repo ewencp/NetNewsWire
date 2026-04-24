@@ -13,8 +13,8 @@ final class AdvancedPreferencesViewController: NSViewController {
 	@IBOutlet var releaseBuildsButton: NSButton!
 	@IBOutlet var testBuildsButton: NSButton!
 
-	let releaseBuildsURL = Bundle.main.infoDictionary!["SUFeedURL"]! as! String
-	let testBuildsURL = Bundle.main.infoDictionary!["FeedURLForTestBuilds"]! as! String
+	let releaseBuildsURL = Bundle.main.infoDictionary?["SUFeedURL"] as? String ?? ""
+	let testBuildsURL = Bundle.main.infoDictionary?["FeedURLForTestBuilds"] as? String ?? ""
 	let appcastDefaultsKey = "SUFeedURL"
 
 	var didRegisterForNotification = false

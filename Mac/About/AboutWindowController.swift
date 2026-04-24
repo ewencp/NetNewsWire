@@ -70,6 +70,12 @@ private extension AboutWindowController {
 		copyrightAttributedString.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: copyrightFullRange)
 		copyrightAttributedString.addAttribute(.font, value: NSFont.preferredFont(forTextStyle: .subheadline), range: copyrightFullRange)
 
+		if let nameRange = copyrightText.range(of: "Ewen Cheslack-Postava") {
+			let nsRange = NSRange(nameRange, in: copyrightText)
+			let url = URL(string: "https://ewencp.org")!
+			copyrightAttributedString.addAttribute(.link, value: url, range: nsRange)
+		}
+
 		if let nameRange = copyrightText.range(of: "Brent Simmons") {
 			let nsRange = NSRange(nameRange, in: copyrightText)
 			let url = URL(string: "https://inessential.com/")!
@@ -79,10 +85,15 @@ private extension AboutWindowController {
 		copyrightLabel.textStorage?.setAttributedString(copyrightAttributedString)
 
 		// Credits
+		let upstreamNote = NSMutableAttributedString(string: "The following credits, thanks, and dedication are from the upstream NetNewsWire project from which NNW Remix is derived.\n\n", attributes: [
+			.font: NSFont.preferredFont(forTextStyle: .subheadline),
+			.foregroundColor: NSColor.secondaryLabelColor
+		])
 		if let creditsURL = Bundle.main.url(forResource: "Credits", withExtension: "rtf"),
 		   let creditsData = try? Data(contentsOf: creditsURL),
-		   let attributedString = try? NSAttributedString(data: creditsData, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil) {
-			creditsTextView.textStorage?.setAttributedString(attributedString)
+		   let creditsString = try? NSAttributedString(data: creditsData, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil) {
+			upstreamNote.append(creditsString)
+			creditsTextView.textStorage?.setAttributedString(upstreamNote)
 		} else {
 			creditsTextView.string = "Credits not available."
 		}
@@ -93,8 +104,8 @@ private extension AboutWindowController {
 		creditsTextView.textStorage?.addAttribute(.paragraphStyle, value: leadingParagraphStyle, range: fullRange)
 
 		// URL
-		let url = URL(string: "https://netnewswire.com/")!
-		let attributedString = NSMutableAttributedString(string: "netnewswire.com")
+		let url = URL(string: "https://github.com/ewencp/NetNewsWire")!
+		let attributedString = NSMutableAttributedString(string: "github.com/ewencp/NetNewsWire")
 		attributedString.addAttribute(.link, value: url, range: NSRange(location: 0, length: attributedString.length))
 		attributedString.addAttribute(.foregroundColor, value: NSColor.systemBlue, range: NSRange(location: 0, length: attributedString.length))
 		attributedString.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: attributedString.length))

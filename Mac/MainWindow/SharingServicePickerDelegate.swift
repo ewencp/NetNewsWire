@@ -18,7 +18,7 @@ import RSCore
 	}
 
 	@MainActor func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker, sharingServicesForItems items: [Any], proposedSharingServices proposedServices: [NSSharingService]) -> [NSSharingService] {
-		let filteredServices = proposedServices.filter { $0.menuItemTitle != "NetNewsWire" }
+		let filteredServices = proposedServices.filter { $0.menuItemTitle != "NNW Remix" }
 		return filteredServices + SharingServicePickerDelegate.customSharingServices(for: items)
 	}
 

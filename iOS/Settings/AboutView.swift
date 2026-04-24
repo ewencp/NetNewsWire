@@ -17,12 +17,17 @@ struct AboutView: View {
 					.frame(width: 100, height: 100)
 					.clipShape(RoundedRectangle(cornerRadius: 20))
 
-				Text(verbatim: "NetNewsWire")
+				Text(verbatim: "NNW Remix")
 					.font(.largeTitle)
 
-				Text(verbatim: "By Brent Simmons and the Ranchero Software team")
+				Text(verbatim: "Derived from NetNewsWire by Brent Simmons and the Ranchero Software team")
 					.foregroundStyle(.secondary)
-				Text("[netnewswire.com](https://netnewswire.com/)")
+				Text("[github.com/ewencp/NetNewsWire](https://github.com/ewencp/NetNewsWire)")
+
+				Text("The following credits, thanks, and dedication are from the upstream NetNewsWire project from which NNW Remix is derived.")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.padding(.top, 8)
 
 				VStack(spacing: 6) {
 					Text(verbatim: "Credits")
@@ -55,7 +60,7 @@ struct AboutView: View {
 					Text("NetNewsWire 7 is dedicated to everyone working to save democracy in the United States and around the world.")
 				}
 
-				Text(verbatim: "Copyright © 2002-2026 Brent Simmons")
+				Text(verbatim: "Copyright \u{00A9} 2026 Ewen Cheslack-Postava\nDerived from NetNewsWire \u{00A9} 2002-2026 Brent Simmons")
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.padding(.bottom)
@@ -64,7 +69,7 @@ struct AboutView: View {
 		}
 		.multilineTextAlignment(.center)
 		.background(Color(uiColor: .systemBackground))
-		.navigationTitle(Text(verbatim: "About NetNewsWire"))
+		.navigationTitle(Text(verbatim: "About NNW Remix"))
     }
 }
 

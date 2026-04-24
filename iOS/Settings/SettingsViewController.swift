@@ -215,9 +215,6 @@ final class SettingsViewController: UITableViewController {
 					let sourceRect = tableView.rectForRow(at: indexPath)
 					exportOPML(sourceView: sourceView, sourceRect: sourceRect)
 				}
-			case 2:
-				addFeed()
-				tableView.selectRow(at: nil, animated: true, scrollPosition: .none)
 			default:
 				break
 			}
@@ -401,19 +398,6 @@ extension SettingsViewController: UIDocumentPickerDelegate {
 // MARK: - Private
 
 private extension SettingsViewController {
-
-	func addFeed() {
-		self.dismiss(animated: true)
-
-		let addNavViewController = UIStoryboard.add.instantiateViewController(withIdentifier: "AddFeedViewControllerNav") as! UINavigationController
-		let addViewController = addNavViewController.topViewController as! AddFeedViewController
-		addViewController.initialFeed = AccountManager.netNewsWireNewsURL
-		addViewController.initialFeedName = NSLocalizedString("NetNewsWire News", comment: "NetNewsWire News")
-		addNavViewController.modalPresentationStyle = .formSheet
-		addNavViewController.preferredContentSize = AddFeedViewController.preferredContentSizeForFormSheetDisplay
-
-		presentingParentController?.present(addNavViewController, animated: true)
-	}
 
 	func importOPML(sourceView: UIView, sourceRect: CGRect) {
 		switch AccountManager.shared.activeAccounts.count {

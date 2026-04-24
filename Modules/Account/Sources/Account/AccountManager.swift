@@ -18,8 +18,8 @@ import ErrorLog
 	
 	public static var shared = AccountManager()
 
-	public static let netNewsWireNewsURL = "https://netnewswire.blog/feed.xml"
-    private static let jsonNetNewsWireNewsURL = "https://netnewswire.blog/feed.json"
+	public static let netNewsWireNewsURL = ""
+    private static let jsonNetNewsWireNewsURL = ""
 
 	public let defaultAccount: Account
 	public let errorLogDatabase: ErrorLogDatabase

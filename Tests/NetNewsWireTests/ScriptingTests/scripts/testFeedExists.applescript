@@ -1,6 +1,6 @@
 -- this script just tests that no error was generated from the script
 try
-	tell application "NetNewsWire"
+	tell application "NNW Remix"
 		 exists feed 1 of account 1
 	end tell
 on error message

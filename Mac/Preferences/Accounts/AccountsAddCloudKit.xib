@@ -40,7 +40,7 @@
                     </textField>
                     <textField focusRingType="none" verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" textCompletion="NO" translatesAutoresizingMaskIntoConstraints="NO" id="3Kj-Cl-FJQ">
                         <rect key="frame" x="76" y="60" width="359" height="32"/>
-                        <textFieldCell key="cell" selectable="YES" allowsUndo="NO" title="NetNewsWire will use your iCloud account to sync your feeds across your Mac and iOS devices." id="wfr-Dv-UIF">
+                        <textFieldCell key="cell" selectable="YES" allowsUndo="NO" title="NNW Remix will use your iCloud account to sync your feeds across your Mac and iOS devices." id="wfr-Dv-UIF">
                             <font key="font" usesAppearanceFont="YES"/>
                             <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
                             <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>

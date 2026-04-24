@@ -1,6 +1,6 @@
 -- this script just tests that no error was generated from the script
 try
-	tell application "NetNewsWire"
+	tell application "NNW Remix"
 		{name, url} of every feed of every account
 	end tell
 on error message
