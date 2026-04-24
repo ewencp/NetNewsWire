@@ -10,14 +10,14 @@ import Foundation
 
 enum HelpURL: String {
 
-	case helpHome = "https://netnewswire.com/help/"
-	case website = "https://netnewswire.com/"
-	case releaseNotes = "https://github.com/Ranchero-Software/NetNewsWire/releases/"
+	case helpHome = "https://github.com/ewencp/NetNewsWire#readme"
+	case website = "https://github.com/ewencp/NetNewsWire"
+	case releaseNotes = "https://github.com/ewencp/NetNewsWire/releases/"
 	case howToSupportNetNewsWire = "https://github.com/Ranchero-Software/NetNewsWire/blob/main/Technotes/HowToSupportNetNewsWire.markdown"
-	case githubRepo = "https://github.com/Ranchero-Software/NetNewsWire"
-	case bugTracker = "https://github.com/Ranchero-Software/NetNewsWire/issues"
+	case githubRepo = "https://github.com/ewencp/NetNewsWire/"
+	case bugTracker = "https://github.com/ewencp/NetNewsWire/issues"
 	case discourse = "https://discourse.netnewswire.com/"
-	case technotes = "https://github.com/Ranchero-Software/NetNewsWire/tree/main/Technotes"
+	case technotes = "https://github.com/ewencp/NetNewsWire/tree/main/Technotes"
 	case privacyPolicy = "https://netnewswire.com/privacypolicy.html"
 
 #if os(macOS)
