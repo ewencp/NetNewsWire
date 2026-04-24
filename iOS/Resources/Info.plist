@@ -183,7 +183,7 @@
 				<string>com.apple.package</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>NetNewsWire Theme</string>
+			<string>NNW Remix Theme</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.ranchero.netnewswire.theme</string>
 			<key>UTTypeTagSpecification</key>
@@ -203,7 +203,7 @@
 				<string>nnwtheme</string>
 			</array>
 			<key>CFBundleTypeName</key>
-			<string>NetNewsWire Theme</string>
+			<string>NNW Remix Theme</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>CFBundleTypeRole</key>
@@ -219,8 +219,8 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>UserAgent</key>
-	<string>NetNewsWire (RSS Reader; https://netnewswire.com/)</string>
+	<string>NNW Remix (RSS Reader; https://github.com/ewencp/NetNewsWire)</string>
 	<key>UserAgentExtended</key>
-	<string>NetNewsWire (RSS Reader; https://netnewswire.com/; [platform]; [version] ([build]))</string>
+	<string>NNW Remix (RSS Reader; https://github.com/ewencp/NetNewsWire; [platform]; [version] ([build]))</string>
 </dict>
 </plist>
