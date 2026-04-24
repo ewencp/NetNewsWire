@@ -2,6 +2,6 @@
 
 // Settings common to both the Mac Direct and Mac App Store targets
 INFOPLIST_FILE = Mac/Resources/Info.plist
-PRODUCT_NAME = NetNewsWire
+PRODUCT_NAME = NNW Remix
 SWIFT_OBJC_BRIDGING_HEADER = Mac/NetNewsWire-Bridging-Header.h
 LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks
