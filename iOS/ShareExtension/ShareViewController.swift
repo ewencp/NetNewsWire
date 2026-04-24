@@ -42,7 +42,7 @@ final class ShareViewController: SLComposeServiceViewController, ShareFolderPick
 			selectedContainer = ShareDefaultContainer.defaultContainer(containers: extensionContainers)
 		}
 
-		title = "NetNewsWire"
+		title = "NNW Remix"
 		placeholder = "Feed Name (Optional)"
 		if let button = navigationController?.navigationBar.topItem?.rightBarButtonItem {
 			button.title = "Add Feed"
