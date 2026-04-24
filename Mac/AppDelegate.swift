@@ -19,7 +19,7 @@ import Secrets
 import CrashReporter
 import Sparkle
 
-let appName = "NetNewsWire"
+let appName = "NNW Remix"
 
 @MainActor var appDelegate: AppDelegate!
 
@@ -457,10 +457,6 @@ let appName = "NetNewsWire"
 			return AccountManager.shared.activeAccounts.contains(where: { !$0.behaviors.contains(where: { $0 == .disallowOPMLImports }) })
 		}
 
-		if item.action == #selector(addAppNews(_:)) {
-			return !isDisplayingSheet && !AccountManager.shared.anyAccountHasNetNewsWireNewsSubscription() && !AccountManager.shared.activeAccounts.isEmpty
-		}
-
 		if item.action == #selector(sortByNewestArticleOnTop(_:)) || item.action == #selector(sortByOldestArticleOnTop(_:)) {
 			return mainWindowController?.isOpen ?? false
 		}
@@ -622,13 +618,6 @@ let appName = "NetNewsWire"
 
 		exportOPMLController = ExportOPMLWindowController()
 		exportOPMLController?.runSheetOnWindow(windowController.window!)
-	}
-
-	@IBAction func addAppNews(_ sender: Any?) {
-		if AccountManager.shared.anyAccountHasNetNewsWireNewsSubscription() {
-			return
-		}
-		addFeed(AccountManager.netNewsWireNewsURL, name: "NetNewsWire News")
 	}
 
 	@IBAction func openWebsite(_ sender: Any?) {
