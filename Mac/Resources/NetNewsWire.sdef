@@ -3,7 +3,7 @@
 <!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
 
 <!-- declare the namespace for using XInclude so we can include the standard suite -->
-<dictionary title="NetNewsWire Terminology" xmlns:xi="http://www.w3.org/2003/XInclude">
+<dictionary title="NNW Remix Terminology" xmlns:xi="http://www.w3.org/2003/XInclude">
 
     <suite name="Standard Suite" code="core" description="Subset of the Standard Suite.">
         <access-group identifier="com.ranchero.NetNewsWire-Evergreen" access="rw"/>
@@ -52,10 +52,10 @@
         </class>
     </suite>
 
-    <suite name="NetNewsWire Suite" code="Geod" description="The NetNewsWire Application Suite.">
+    <suite name="NNW Remix Suite" code="Geod" description="The NNW Remix Application Suite.">
         <access-group identifier="com.ranchero.NetNewsWire-Evergreen" access="rw"/>
         <class name="application" code="capp"
-             description="NetNewsWire Application" inherits="application">
+             description="NNW Remix Application" inherits="application">
              
              <!-- the name of the Cocoa class where we have provided the
               various accessor methods for our application class.  -->
@@ -227,7 +227,7 @@
             <property name="published date" code="PDat" type="date" access="r" description="date the article was published">
                 <cocoa key="datePublished"/>
             </property>
-            <property name="arrived date" code="ADat" type="date" access="r" description="date the article was seen by NetNewsWire">
+            <property name="arrived date" code="ADat" type="date" access="r" description="date the article was seen by NNW Remix">
                 <cocoa key="dateArrived"/>
             </property>
             <property name="modified date" code="MDat" type="date" access="r" description="date the article was last modified">

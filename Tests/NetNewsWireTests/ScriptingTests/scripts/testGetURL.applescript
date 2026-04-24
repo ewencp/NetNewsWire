@@ -1,5 +1,5 @@
 try
-    tell application "NetNewsWire"
+    tell application "NNW Remix"
 	    open location "http://scripting.com/rss"
     end tell
 on error message

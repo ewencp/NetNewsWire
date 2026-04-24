@@ -1,7 +1,7 @@
 
 -- this script just tests that no error was generated from the script
 try
-	tell application "NetNewsWire"
+	tell application "NNW Remix"
 		name of every folder of every account
 	end tell
 on error message
