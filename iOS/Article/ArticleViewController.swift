@@ -50,6 +50,18 @@ final class ArticleViewController: UIViewController {
 		return button
 	}()
 
+	private var articleSummarizerButton: ArticleSummarizerButton = {
+		let button = ArticleSummarizerButton(type: .system)
+		button.frame = CGRect(x: 0, y: 0, width: 44.0, height: 44.0)
+		button.setImage(Assets.Images.articleSummarizerOff, for: .normal)
+		if #unavailable(iOS 26) {
+			button.tintColor = Assets.Colors.primaryAccent
+		} else {
+			button.tintColor = .secondaryLabel
+		}
+		return button
+	}()
+
 	weak var coordinator: SceneCoordinator!
 
 	private let poppableDelegate = PoppableGestureRecognizerDelegate()
@@ -119,8 +131,12 @@ final class ArticleViewController: UIViewController {
 		articleExtractorButton.addTarget(self, action: #selector(toggleArticleExtractor(_:)), for: .touchUpInside)
 		let articleExtractorBarButtonItem = UIBarButtonItem(customView: articleExtractorButton)
 
+		articleSummarizerButton.addTarget(self, action: #selector(toggleArticleSummarizer(_:)), for: .touchUpInside)
+		let articleSummarizerBarButtonItem = UIBarButtonItem(customView: articleSummarizerButton)
+
 		if #available(iOS 26, *) {
 			toolbarItems?.insert(articleExtractorBarButtonItem, at: 5)
+			toolbarItems?.insert(articleSummarizerBarButtonItem, at: 6)
 		} else {
 			let flex = { UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil) }
 			toolbarItems = [
@@ -131,6 +147,8 @@ final class ArticleViewController: UIViewController {
 				nextUnreadBarButtonItem,
 				flex(),
 				articleExtractorBarButtonItem,
+				flex(),
+				articleSummarizerBarButtonItem,
 				flex(),
 				actionBarButtonItem
 			]
@@ -320,6 +338,10 @@ final class ArticleViewController: UIViewController {
 		currentWebViewController?.toggleArticleExtractor()
 	}
 
+	@IBAction func toggleArticleSummarizer(_ sender: Any) {
+		currentWebViewController?.toggleArticleSummarizer()
+	}
+
 	@IBAction func nextUnread(_ sender: Any) {
 		coordinator.selectNextUnread()
 	}
@@ -468,6 +490,12 @@ extension ArticleViewController: WebViewControllerDelegate {
 	func webViewController(_ webViewController: WebViewController, articleExtractorButtonStateDidUpdate buttonState: ArticleExtractorButtonState) {
 		if webViewController === currentWebViewController {
 			articleExtractorButton.buttonState = buttonState
+		}
+	}
+
+	func webViewController(_ webViewController: WebViewController, articleSummarizerButtonStateDidUpdate buttonState: ArticleSummarizerButtonState) {
+		if webViewController === currentWebViewController {
+			articleSummarizerButton.buttonState = buttonState
 		}
 	}
 

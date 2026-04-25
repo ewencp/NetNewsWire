@@ -12,11 +12,14 @@ import RSCore
 import RSWeb
 import Account
 import Articles
+import ArticleAI
+import OllamaKit
 import SafariServices
 import MessageUI
 
 @MainActor protocol WebViewControllerDelegate: AnyObject {
 	func webViewController(_: WebViewController, articleExtractorButtonStateDidUpdate: ArticleExtractorButtonState)
+	func webViewController(_: WebViewController, articleSummarizerButtonStateDidUpdate: ArticleSummarizerButtonState)
 }
 
 final class WebViewController: UIViewController {
@@ -61,6 +64,16 @@ final class WebViewController: UIViewController {
 	var articleExtractorButtonState: ArticleExtractorButtonState = .off {
 		didSet {
 			delegate?.webViewController(self, articleExtractorButtonStateDidUpdate: articleExtractorButtonState)
+		}
+	}
+
+	private var summarizationTask: Task<Void, Never>?
+	var summarizedArticle: SummarizedArticle?
+	var isShowingSummarizedArticle = false
+
+	var articleSummarizerButtonState: ArticleSummarizerButtonState = .off {
+		didSet {
+			delegate?.webViewController(self, articleSummarizerButtonStateDidUpdate: articleSummarizerButtonState)
 		}
 	}
 
@@ -122,6 +135,11 @@ final class WebViewController: UIViewController {
 
 	func setArticle(_ article: Article?, updateView: Bool = true) {
 		stopArticleExtractor()
+		summarizationTask?.cancel()
+		summarizationTask = nil
+		isShowingSummarizedArticle = false
+		summarizedArticle = nil
+		articleSummarizerButtonState = .off
 
 		if article != self.article {
 			self.article = article
@@ -260,6 +278,67 @@ final class WebViewController: UIViewController {
 			startArticleExtractor()
 		}
 
+	}
+
+	func toggleArticleSummarizer() {
+		guard let article else {
+			return
+		}
+
+		// Cancel in-flight
+		if let task = summarizationTask, !task.isCancelled {
+			task.cancel()
+			summarizationTask = nil
+			isShowingSummarizedArticle = false
+			articleSummarizerButtonState = .off
+			loadWebView()
+			return
+		}
+
+		// Toggle off
+		guard !isShowingSummarizedArticle else {
+			isShowingSummarizedArticle = false
+			articleSummarizerButtonState = .off
+			loadWebView()
+			return
+		}
+
+		// Start summarization
+		let modelName = UserDefaults.standard.string(forKey: "ollamaSummaryModel") ?? "llama3.2:latest"
+		let summarizer = OllamaSummarizer(modelName: modelName)
+
+		let sourceHTML: String
+		if isShowingExtractedArticle, let extracted = extractedArticle?.content {
+			sourceHTML = extracted
+		} else {
+			sourceHTML = article.body ?? ""
+		}
+
+		guard !sourceHTML.isEmpty else {
+			return
+		}
+
+		articleSummarizerButtonState = .animated
+
+		summarizationTask = Task {
+			do {
+				let result = try await summarizer.summarize(sourceHTML, sentenceCount: 12)
+				guard !Task.isCancelled else {
+					return
+				}
+				summarizedArticle = result
+				isShowingSummarizedArticle = true
+				articleSummarizerButtonState = .on
+				loadWebView()
+			} catch {
+				guard !Task.isCancelled else {
+					return
+				}
+				articleSummarizerButtonState = .error
+				loadWebView()
+			}
+			summarizationTask = nil
+		}
 	}
 
 	func stopArticleExtractorIfProcessing() {
@@ -585,6 +664,8 @@ private extension WebViewController {
 			rendering = ArticleRenderer.loadingHTML(theme: theme)
 		} else if let articleExtractor = articleExtractor, articleExtractor.state == .failedToParse, let article = article {
 			rendering = ArticleRenderer.articleHTML(article: article, theme: theme)
+		} else if let article = article, isShowingSummarizedArticle, let summarizedArticle {
+			rendering = ArticleRenderer.summaryHTML(article: article, summaryHTML: summarizedArticle.contentHTML, theme: theme)
 		} else if let article = article, let extractedArticle = extractedArticle {
 			if isShowingExtractedArticle {
 				rendering = ArticleRenderer.articleHTML(article: article, extractedArticle: extractedArticle, theme: theme)
