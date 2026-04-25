@@ -229,6 +229,7 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 	@objc func makeToolbarValidate() {
 
 		window?.toolbar?.validateVisibleItems()
+		updateSummarizerToolbarItem()
 	}
 
 	// MARK: - NSUserInterfaceValidations
@@ -277,10 +278,6 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 
 		if item.action == #selector(toggleArticleExtractor(_:)) {
 			return validateToggleArticleExtractor(item)
-		}
-
-		if item.action == #selector(toggleArticleSummarizer(_:)) {
-			return validateToggleArticleSummarizer(item)
 		}
 
 		if item.action == #selector(toolbarShowShareMenu(_:)) {
@@ -541,6 +538,30 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 			summarizationTask = nil
 			makeToolbarValidate()
 		}
+	}
+
+	@IBAction func detailLevelChanged(_ sender: NSSlider) {
+		currentSentenceCount = sender.integerValue
+		updateDetailLevelLabel()
+
+		// Regenerate summary if currently showing one
+		if isShowingSummarizedArticle, let article = oneSelectedArticle {
+			isShowingSummarizedArticle = false
+			startSummarization(for: article)
+		}
+	}
+
+	private func detailLevelLabel() -> String {
+		OllamaSummarizer.lengthInstruction(for: currentSentenceCount)
+	}
+
+	private func updateDetailLevelLabel() {
+		guard let toolbarItem = window?.toolbar?.items.first(where: { $0.itemIdentifier == .summarize }),
+			  let stackView = toolbarItem.view as? NSStackView,
+			  let label = stackView.views.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("detailLevelLabel") }) as? NSTextField else {
+			return
+		}
+		label.stringValue = detailLevelLabel()
 	}
 
 	@IBAction func markAllAsReadAndGoToNextUnread(_ sender: Any?) {
@@ -940,9 +961,29 @@ extension MainWindowController: NSToolbarDelegate {
 			let description = NSLocalizedString("Summarize", comment: "Summarize")
 			toolbarItem.toolTip = description
 			toolbarItem.label = description
+
 			let button = ArticleSummarizerButton()
 			button.action = #selector(toggleArticleSummarizer(_:))
-			toolbarItem.view = button
+
+			let slider = NSSlider(value: Double(currentSentenceCount), minValue: 1, maxValue: 50, target: self, action: #selector(detailLevelChanged(_:)))
+			slider.isHidden = true
+			slider.controlSize = .small
+			slider.widthAnchor.constraint(equalToConstant: 80).isActive = true
+			slider.identifier = NSUserInterfaceItemIdentifier("detailLevelSlider")
+
+			let label = NSTextField(labelWithString: detailLevelLabel())
+			label.font = .systemFont(ofSize: 10)
+			label.alignment = .center
+			label.isHidden = true
+			label.identifier = NSUserInterfaceItemIdentifier("detailLevelLabel")
+			label.widthAnchor.constraint(greaterThanOrEqualToConstant: 80).isActive = true
+
+			let stackView = NSStackView(views: [button, slider, label])
+			stackView.orientation = .horizontal
+			stackView.spacing = 4
+			stackView.alignment = .centerY
+
+			toolbarItem.view = stackView
 			return toolbarItem
 
 		case .share:
@@ -1288,25 +1329,29 @@ private extension MainWindowController {
 		return state != .processing
 	}
 
-	func validateToggleArticleSummarizer(_ item: NSValidatedUserInterfaceItem) -> Bool {
-		guard let toolbarItem = item as? NSToolbarItem, let toolbarButton = toolbarItem.view as? ArticleSummarizerButton else {
-			if let menuItem = item as? NSMenuItem {
-				menuItem.state = isShowingSummarizedArticle ? .on : .off
-			}
-			return oneSelectedArticle != nil
+	private func updateSummarizerToolbarItem() {
+		guard let toolbarItem = window?.toolbar?.items.first(where: { $0.itemIdentifier == .summarize }),
+			  let stackView = toolbarItem.view as? NSStackView else {
+			return
 		}
+
+		let button = stackView.views.compactMap { $0 as? ArticleSummarizerButton }.first
+		let slider = stackView.views.first { $0.identifier == NSUserInterfaceItemIdentifier("detailLevelSlider") }
+		let label = stackView.views.first { $0.identifier == NSUserInterfaceItemIdentifier("detailLevelLabel") }
+
+		let showControls = isShowingSummarizedArticle
+		slider?.isHidden = !showControls
+		label?.isHidden = !showControls
 
 		if summarizationTask != nil {
-			toolbarButton.buttonState = .animated
+			button?.buttonState = .animated
 		} else if summarizationError != nil {
-			toolbarButton.buttonState = .error
+			button?.buttonState = .error
 		} else if isShowingSummarizedArticle {
-			toolbarButton.buttonState = .on
+			button?.buttonState = .on
 		} else {
-			toolbarButton.buttonState = .off
+			button?.buttonState = .off
 		}
-
-		return oneSelectedArticle != nil
 	}
 
 	func canMarkAboveArticlesAsRead() -> Bool {

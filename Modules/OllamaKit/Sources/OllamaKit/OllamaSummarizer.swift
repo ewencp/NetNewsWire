@@ -126,7 +126,7 @@ public final class OllamaSummarizer: Summarizer {
 	}
 
 	/// Converts a sentence count to a natural language length instruction.
-	static func lengthInstruction(for sentenceCount: Int) -> String {
+	public static func lengthInstruction(for sentenceCount: Int) -> String {
 		switch sentenceCount {
 		case 1:
 			return "1 sentence"
