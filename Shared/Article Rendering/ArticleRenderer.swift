@@ -13,6 +13,7 @@ import UIKit
 import RSCore
 import Articles
 import Account
+import ArticleAI
 
 @MainActor struct ArticleRenderer {
 
@@ -105,12 +106,15 @@ import Account
 		return formatter
 	}()
 
-	private init(article: Article?, extractedArticle: ExtractedArticle?, theme: ArticleTheme) {
+	private init(article: Article?, extractedArticle: ExtractedArticle?, summaryHTML: String? = nil, theme: ArticleTheme) {
 		self.article = article
 		self.extractedArticle = extractedArticle
 		self.articleTheme = theme
 		self.title = article?.sanitizedTitle() ?? ""
-		if let content = extractedArticle?.content {
+		if let summaryHTML {
+			self.body = summaryHTML
+			self.baseURL = article?.baseURL?.absoluteString
+		} else if let content = extractedArticle?.content {
 			self.body = content
 			self.baseURL = extractedArticle?.url
 		} else {
@@ -123,6 +127,11 @@ import Account
 
 	static func articleHTML(article: Article, extractedArticle: ExtractedArticle? = nil, theme: ArticleTheme) -> Rendering {
 		let renderer = ArticleRenderer(article: article, extractedArticle: extractedArticle, theme: theme)
+		return (renderer.articleCSS, renderer.articleHTML, renderer.title, renderer.baseURL ?? "")
+	}
+
+	static func summaryHTML(article: Article, summaryHTML: String, theme: ArticleTheme) -> Rendering {
+		let renderer = ArticleRenderer(article: article, extractedArticle: nil, summaryHTML: summaryHTML, theme: theme)
 		return (renderer.articleCSS, renderer.articleHTML, renderer.title, renderer.baseURL ?? "")
 	}
 

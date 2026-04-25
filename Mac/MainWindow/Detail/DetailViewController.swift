@@ -11,6 +11,7 @@ import WebKit
 import RSCore
 import Articles
 import RSWeb
+import ArticleAI
 
 enum DetailState: Equatable {
 	case noSelection
@@ -18,6 +19,7 @@ enum DetailState: Equatable {
 	case loading
 	case article(Article, CGFloat?)
 	case extracted(Article, ExtractedArticle, CGFloat?)
+	case summarized(Article, SummarizedArticle, CGFloat?)
 }
 
 final class DetailViewController: NSViewController, WKUIDelegate {

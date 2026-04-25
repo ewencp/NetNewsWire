@@ -11,6 +11,7 @@ import AppKit
 import RSCore
 import RSWeb
 import Articles
+import ArticleAI
 
 @MainActor protocol DetailWebViewControllerDelegate: AnyObject {
 	func mouseDidEnter(_: DetailWebViewController, link: String)
@@ -25,7 +26,7 @@ final class DetailWebViewController: NSViewController {
 		didSet {
 			if state != oldValue {
 				switch state {
-				case .article(_, let scrollY), .extracted(_, _, let scrollY):
+				case .article(_, let scrollY), .extracted(_, _, let scrollY), .summarized(_, _, let scrollY):
 					windowScrollY = scrollY
 				default:
 					break
@@ -44,6 +45,8 @@ final class DetailWebViewController: NSViewController {
 		case .article(let article, _):
 			return article
 		case .extracted(let article, _, _):
+			return article
+		case .summarized(let article, _, _):
 			return article
 		default:
 			return nil
@@ -294,6 +297,9 @@ private extension DetailWebViewController {
 		case .extracted(let article, let extractedArticle, _):
 			detailIconSchemeHandler.currentArticle = article
 			rendering = ArticleRenderer.articleHTML(article: article, extractedArticle: extractedArticle, theme: theme)
+		case .summarized(let article, let summarizedArticle, _):
+			detailIconSchemeHandler.currentArticle = article
+			rendering = ArticleRenderer.summaryHTML(article: article, summaryHTML: summarizedArticle.contentHTML, theme: theme)
 		}
 
 		let substitutions = [
