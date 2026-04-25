@@ -500,7 +500,63 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 	}
 
 	private func startSummarization(for article: Article) {
-		let modelName = UserDefaults.standard.string(forKey: "ollamaSummaryModel") ?? "llama3.2:latest"
+		if let modelName = UserDefaults.standard.string(forKey: "ollamaSummaryModel") {
+			performSummarization(for: article, modelName: modelName)
+		} else {
+			// First launch: auto-detect a recommended model or show picker
+			autoSelectModelThenSummarize(for: article)
+		}
+	}
+
+	private func autoSelectModelThenSummarize(for article: Article) {
+		let service = OllamaService()
+		summarizationTask = Task {
+			do {
+				let localModels = try await service.listModels()
+				let localNames = Set(localModels.map { $0.name })
+				let recommended = OllamaSummarizer.recommendedModels
+
+				if let match = recommended.first(where: { localNames.contains($0.name) }) {
+					UserDefaults.standard.set(match.name, forKey: "ollamaSummaryModel")
+					summarizationTask = nil
+					performSummarization(for: article, modelName: match.name)
+				} else {
+					summarizationTask = nil
+					showModelPicker(for: article)
+				}
+			} catch {
+				summarizationTask = nil
+				showModelPicker(for: article)
+			}
+			makeToolbarValidate()
+		}
+	}
+
+	private func showModelPicker(for article: Article?) {
+		let popover = ModelPickerPopover()
+		popover.onModelSelected = { [weak self] selectedModel in
+			guard let self else {
+				return
+			}
+			UserDefaults.standard.set(selectedModel, forKey: "ollamaSummaryModel")
+			if let article {
+				performSummarization(for: article, modelName: selectedModel)
+			}
+			makeToolbarValidate()
+		}
+		popover.load(currentModel: UserDefaults.standard.string(forKey: "ollamaSummaryModel"))
+
+		if let toolbarItem = window?.toolbar?.items.first(where: { $0.itemIdentifier == .summarize }),
+		   let view = toolbarItem.view {
+			popover.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+		}
+	}
+
+	@objc func showModelPickerFromToolbar(_ sender: Any?) {
+		showModelPicker(for: nil)
+	}
+
+	private func performSummarization(for article: Article, modelName: String) {
 		let summarizer = OllamaSummarizer(modelName: modelName)
 		articleSummarizer = summarizer
 
@@ -529,6 +585,15 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 				isShowingSummarizedArticle = true
 				let detailState = DetailState.summarized(article, result, restoreArticleWindowScrollY)
 				detailViewController?.setState(detailState, mode: timelineSourceMode)
+			} catch let error as SummarizationError {
+				guard !Task.isCancelled else {
+					return
+				}
+				if case .modelNotFound = error {
+					showModelPicker(for: article)
+				} else {
+					summarizationError = error
+				}
 			} catch {
 				guard !Task.isCancelled else {
 					return
@@ -965,6 +1030,14 @@ extension MainWindowController: NSToolbarDelegate {
 			let button = ArticleSummarizerButton()
 			button.action = #selector(toggleArticleSummarizer(_:))
 
+			let modelButton = NSButton(image: NSImage(systemSymbolName: "chevron.down", accessibilityDescription: "Select model")!, target: self, action: #selector(showModelPickerFromToolbar(_:)))
+			modelButton.bezelStyle = .texturedRounded
+			modelButton.isBordered = false
+			modelButton.controlSize = .small
+			modelButton.identifier = NSUserInterfaceItemIdentifier("modelPickerButton")
+			modelButton.toolTip = "Select summarization model"
+			modelButton.isHidden = true
+
 			let slider = NSSlider(value: Double(currentSentenceCount), minValue: 1, maxValue: 50, target: self, action: #selector(detailLevelChanged(_:)))
 			slider.isHidden = true
 			slider.controlSize = .small
@@ -978,7 +1051,7 @@ extension MainWindowController: NSToolbarDelegate {
 			label.identifier = NSUserInterfaceItemIdentifier("detailLevelLabel")
 			label.widthAnchor.constraint(greaterThanOrEqualToConstant: 80).isActive = true
 
-			let stackView = NSStackView(views: [button, slider, label])
+			let stackView = NSStackView(views: [button, modelButton, slider, label])
 			stackView.orientation = .horizontal
 			stackView.spacing = 4
 			stackView.alignment = .centerY
@@ -1336,10 +1409,12 @@ private extension MainWindowController {
 		}
 
 		let button = stackView.views.compactMap { $0 as? ArticleSummarizerButton }.first
+		let modelButton = stackView.views.first { $0.identifier == NSUserInterfaceItemIdentifier("modelPickerButton") }
 		let slider = stackView.views.first { $0.identifier == NSUserInterfaceItemIdentifier("detailLevelSlider") }
 		let label = stackView.views.first { $0.identifier == NSUserInterfaceItemIdentifier("detailLevelLabel") }
 
 		let showControls = isShowingSummarizedArticle
+		modelButton?.isHidden = !showControls
 		slider?.isHidden = !showControls
 		label?.isHidden = !showControls
 
