@@ -10,9 +10,13 @@ let package = Package(
 			type: .dynamic,
 			targets: ["ArticleAI"])
 	],
+	dependencies: [
+		.package(path: "../RSMarkdown")
+	],
 	targets: [
 		.target(
 			name: "ArticleAI",
+			dependencies: ["RSMarkdown"],
 			swiftSettings: [
 				.enableUpcomingFeature("NonisolatedNonsendingByDefault"),
 				.enableUpcomingFeature("InferIsolatedConformances")
