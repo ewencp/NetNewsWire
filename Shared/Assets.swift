@@ -44,6 +44,9 @@ struct Assets {
 		static var articleExtractorError: RSImage { RSImage(named: "articleExtractorError")! }
 		static var articleExtractorOn: RSImage { RSImage(named: "articleExtractorOn")! }
 		static var articleExtractorOff: RSImage { RSImage(named: "articleExtractorOff")! }
+		static var articleSummarizerError: RSImage { RSImage(symbol: "exclamationmark.triangle")! }
+		static var articleSummarizerOn: RSImage { RSImage(symbol: "hare.fill")! }
+		static var articleSummarizerOff: RSImage { RSImage(symbol: "hare")! }
 		static var share: RSImage { RSImage(symbol: "square.and.arrow.up")! }
 		static var folder: RSImage { RSImage(symbol: "folder")! }
 		static var starredFeed: IconImage {

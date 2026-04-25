@@ -49,13 +49,24 @@ struct OllamaSummarizerTests {
 		#expect(OllamaSummarizer.lengthInstruction(for: 12) == "3-4 paragraphs")
 	}
 
-	@Test func buildPromptIncludesImageInstructions() {
+	@Test func buildPromptIncludesImageInstructionsWhenImagesPresent() {
 		let prompt = OllamaSummarizer.buildPrompt(
 			preprocessedText: "Article with [Image 1: photo].",
-			sentenceCount: 3
+			sentenceCount: 3,
+			imageCount: 1
 		)
-		#expect(prompt.contains("[Image N]"))
 		#expect(prompt.contains("lead or hero image"))
+		#expect(prompt.contains("Do not invent"))
+	}
+
+	@Test func buildPromptOmitsImageInstructionsWhenNoImages() {
+		let prompt = OllamaSummarizer.buildPrompt(
+			preprocessedText: "Article without images.",
+			sentenceCount: 3,
+			imageCount: 0
+		)
+		#expect(!prompt.contains("lead or hero image"))
+		#expect(!prompt.contains("[Image"))
 	}
 
 	@Test func defaultModelName() {

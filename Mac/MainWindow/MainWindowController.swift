@@ -12,6 +12,8 @@ import UserNotifications
 import Articles
 import Account
 import RSCore
+import ArticleAI
+import OllamaKit
 
 enum TimelineSourceMode {
 	case regular, search
@@ -26,6 +28,11 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 
 	private var isShowingExtractedArticle = false
 	private var articleExtractor: ArticleExtractor?
+	private var isShowingSummarizedArticle = false
+	private var articleSummarizer: OllamaSummarizer?
+	private var summarizationTask: Task<Void, Never>?
+	private var summarizationError: Error?
+	private var currentSentenceCount: Int = 12
 	private var sharingServicePickerDelegate: NSSharingServicePickerDelegate?
 
 	private let windowAutosaveName = NSWindow.FrameAutosaveName("MainWindow")
@@ -272,6 +279,10 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 			return validateToggleArticleExtractor(item)
 		}
 
+		if item.action == #selector(toggleArticleSummarizer(_:)) {
+			return validateToggleArticleSummarizer(item)
+		}
+
 		if item.action == #selector(toolbarShowShareMenu(_:)) {
 			return canShowShareMenu()
 		}
@@ -462,6 +473,76 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 
 	}
 
+	@IBAction func toggleArticleSummarizer(_ sender: Any?) {
+		guard let article = oneSelectedArticle else {
+			return
+		}
+
+		defer {
+			makeToolbarValidate()
+		}
+
+		// Cancel in-flight summarization
+		if let task = summarizationTask, !task.isCancelled {
+			task.cancel()
+			summarizationTask = nil
+			isShowingSummarizedArticle = false
+			detailViewController?.setState(DetailState.article(article, nil), mode: timelineSourceMode)
+			return
+		}
+
+		// Toggle off
+		guard !isShowingSummarizedArticle else {
+			isShowingSummarizedArticle = false
+			detailViewController?.setState(DetailState.article(article, nil), mode: timelineSourceMode)
+			return
+		}
+
+		// Start summarization
+		startSummarization(for: article)
+	}
+
+	private func startSummarization(for article: Article) {
+		let modelName = UserDefaults.standard.string(forKey: "ollamaSummaryModel") ?? "llama3.2:latest"
+		let summarizer = OllamaSummarizer(modelName: modelName)
+		articleSummarizer = summarizer
+
+		// Use extracted content if Reader View is active, otherwise article body
+		let sourceHTML: String
+		if isShowingExtractedArticle, let extracted = articleExtractor?.article?.content {
+			sourceHTML = extracted
+		} else {
+			sourceHTML = article.body ?? ""
+		}
+
+		guard !sourceHTML.isEmpty else {
+			return
+		}
+
+		let sentenceCount = currentSentenceCount
+
+		summarizationError = nil
+		summarizationTask = Task {
+			do {
+				let result = try await summarizer.summarize(sourceHTML, sentenceCount: sentenceCount)
+				guard !Task.isCancelled else {
+					return
+				}
+
+				isShowingSummarizedArticle = true
+				let detailState = DetailState.summarized(article, result, restoreArticleWindowScrollY)
+				detailViewController?.setState(detailState, mode: timelineSourceMode)
+			} catch {
+				guard !Task.isCancelled else {
+					return
+				}
+				summarizationError = error
+			}
+			summarizationTask = nil
+			makeToolbarValidate()
+		}
+	}
+
 	@IBAction func markAllAsReadAndGoToNextUnread(_ sender: Any?) {
 		currentTimelineViewController?.markAllAsRead {
 			self.nextUnread(sender)
@@ -634,6 +715,10 @@ extension MainWindowController: TimelineContainerViewControllerDelegate {
 		articleExtractor?.cancel()
 		articleExtractor = nil
 		isShowingExtractedArticle = false
+		isShowingSummarizedArticle = false
+		summarizationTask?.cancel()
+		summarizationTask = nil
+		summarizationError = nil
 		makeToolbarValidate()
 
 		let detailState: DetailState
@@ -789,6 +874,7 @@ extension NSToolbarItem.Identifier {
 	static let markRead = NSToolbarItem.Identifier("markRead")
 	static let markStar = NSToolbarItem.Identifier("markStar")
 	static let readerView = NSToolbarItem.Identifier("readerView")
+	static let summarize = NSToolbarItem.Identifier("summarize")
 	static let openInBrowser = NSToolbarItem.Identifier("openInBrowser")
 	static let share = NSToolbarItem.Identifier("share")
 	static let articleThemeMenu = NSToolbarItem.Identifier("articleThemeMenu")
@@ -848,6 +934,17 @@ extension MainWindowController: NSToolbarDelegate {
 			toolbarItem.view = button
 			return toolbarItem
 
+		case .summarize:
+			let toolbarItem = RSToolbarItem(itemIdentifier: .summarize)
+			toolbarItem.autovalidates = true
+			let description = NSLocalizedString("Summarize", comment: "Summarize")
+			toolbarItem.toolTip = description
+			toolbarItem.label = description
+			let button = ArticleSummarizerButton()
+			button.action = #selector(toggleArticleSummarizer(_:))
+			toolbarItem.view = button
+			return toolbarItem
+
 		case .share:
 			let title = NSLocalizedString("Share", comment: "Share")
 			return buildToolbarButton(.share, title, Assets.Images.share, "toolbarShowShareMenu:")
@@ -895,6 +992,7 @@ extension MainWindowController: NSToolbarDelegate {
 			.markRead,
 			.markStar,
 			.readerView,
+			.summarize,
 			.openInBrowser,
 			.share,
 			.articleThemeMenu,
@@ -917,6 +1015,7 @@ extension MainWindowController: NSToolbarDelegate {
 			.markStar,
 			.nextUnread,
 			.readerView,
+			.summarize,
 			.share,
 			.openInBrowser,
 			.flexibleSpace,
@@ -1187,6 +1286,27 @@ private extension MainWindowController {
 		}
 
 		return state != .processing
+	}
+
+	func validateToggleArticleSummarizer(_ item: NSValidatedUserInterfaceItem) -> Bool {
+		guard let toolbarItem = item as? NSToolbarItem, let toolbarButton = toolbarItem.view as? ArticleSummarizerButton else {
+			if let menuItem = item as? NSMenuItem {
+				menuItem.state = isShowingSummarizedArticle ? .on : .off
+			}
+			return oneSelectedArticle != nil
+		}
+
+		if summarizationTask != nil {
+			toolbarButton.buttonState = .animated
+		} else if summarizationError != nil {
+			toolbarButton.buttonState = .error
+		} else if isShowingSummarizedArticle {
+			toolbarButton.buttonState = .on
+		} else {
+			toolbarButton.buttonState = .off
+		}
+
+		return oneSelectedArticle != nil
 	}
 
 	func canMarkAboveArticlesAsRead() -> Bool {
