@@ -209,6 +209,15 @@ extension AppleSpeechSynth: AppleSpeechEngineDelegate {
 	}
 
 	func engineDidFinish(_ engine: AppleSpeechEngine, avSpeechUtterance: AVSpeechUtterance) {
+		// AVSpeech's stopSpeaking is asynchronous; if the current utterance finishes
+		// naturally before our stop's didCancel fires, we land here with a non-trivial
+		// pendingAction (replaceWith / skipTo / fullStop) queued by play()/skipForward()/
+		// skipBackward()/stop(). Honor the pending action instead of auto-advancing —
+		// otherwise the user sees "stop" or "skip" silently behave as "fast forward."
+		if applyPendingActionIfNeeded(via: engine) {
+			return
+		}
+		// Natural advance path.
 		let nextIndex = currentIndex + 1
 		if nextIndex < avSpeechUtterances.count {
 			pendingAction = .advance
@@ -222,6 +231,43 @@ extension AppleSpeechSynth: AppleSpeechEngineDelegate {
 		}
 	}
 
+	/// Consumes any non-trivial `pendingAction` (replaceWith / skipTo / fullStop) and
+	/// returns true if the action was applied. Called from both `engineDidFinish`
+	/// (when the utterance naturally finishes mid-stop) and `engineDidCancel` (the
+	/// normal stopSpeaking path) so either ordering produces the same user-visible
+	/// outcome.
+	private func applyPendingActionIfNeeded(via engine: AppleSpeechEngine) -> Bool {
+		switch pendingAction {
+		case .replaceWith(let newAVSpeechUtterances):
+			pendingAction = .none
+			avSpeechUtterances = newAVSpeechUtterances
+			currentIndex = 0
+			guard let first = newAVSpeechUtterances.first else {
+				state = .idle
+				deactivateAudioSession()
+				return true
+			}
+			state = .preparing
+			engine.speak(first)
+			return true
+		case .skipTo(let idx):
+			pendingAction = .none
+			currentIndex = idx
+			state = .preparing
+			engine.speak(avSpeechUtterances[idx])
+			return true
+		case .fullStop:
+			pendingAction = .none
+			avSpeechUtterances = []
+			currentIndex = 0
+			state = .idle
+			deactivateAudioSession()
+			return true
+		case .none, .advance:
+			return false
+		}
+	}
+
 	func engineDidPause(_ engine: AppleSpeechEngine, avSpeechUtterance: AVSpeechUtterance) {
 		state = .paused(blockIndex: currentIndex, totalBlocks: avSpeechUtterances.count)
 	}
@@ -231,35 +277,14 @@ extension AppleSpeechSynth: AppleSpeechEngineDelegate {
 	}
 
 	func engineDidCancel(_ engine: AppleSpeechEngine, avSpeechUtterance: AVSpeechUtterance) {
-		switch pendingAction {
-		case .replaceWith(let newAVSpeechUtterances):
-			pendingAction = .none
-			avSpeechUtterances = newAVSpeechUtterances
-			currentIndex = 0
-			guard let first = newAVSpeechUtterances.first else {
-				state = .idle
-				deactivateAudioSession()
-				return
-			}
-			state = .preparing
-			engine.speak(first)
-		case .skipTo(let idx):
-			pendingAction = .none
-			currentIndex = idx
-			state = .preparing
-			engine.speak(avSpeechUtterances[idx])
-		case .fullStop:
-			pendingAction = .none
-			avSpeechUtterances = []
-			currentIndex = 0
-			state = .idle
-			deactivateAudioSession()
-		case .none, .advance:
-			pendingAction = .none
-			avSpeechUtterances = []
-			currentIndex = 0
-			state = .idle
-			deactivateAudioSession()
+		if applyPendingActionIfNeeded(via: engine) {
+			return
 		}
+		// Spurious cancel — defensive reset.
+		pendingAction = .none
+		avSpeechUtterances = []
+		currentIndex = 0
+		state = .idle
+		deactivateAudioSession()
 	}
 }
