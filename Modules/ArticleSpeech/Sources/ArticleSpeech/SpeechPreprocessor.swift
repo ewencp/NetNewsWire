@@ -43,6 +43,8 @@ public enum SpeechPreprocessor {
 				NSLocationInRange(listMatch.fullRange.location, container.fullRange)
 			}
 		}
+		// Standalone <img> matches that are NOT inside any container (figures own their imgs).
+		let imageMatches = findStandaloneImageMatches(in: html, excluding: nonListMatches)
 
 		struct OrderedMatch {
 			let location: Int
@@ -66,6 +68,15 @@ public enum SpeechPreprocessor {
 				return extractListItems(from: inner, depth: 0, isOrdered: m.tag == "ol")
 			})
 		}
+		for range in imageMatches {
+			ordered.append(OrderedMatch(location: range.location) {
+				guard let r = Range(range, in: html) else { return [] }
+				let imgTag = String(html[r])
+				let src = extractAttribute(from: imgTag, pattern: "src=[\"']([^\"']+)[\"']")
+				let alt = extractAttribute(from: imgTag, pattern: "alt=[\"']([^\"']*)[\"']")
+				return [.image(SpeechContent.ImageDescriptor(src: src, alt: alt, caption: nil))]
+			})
+		}
 		ordered.sort { $0.location < $1.location }
 
 		var segments: [SpeechContent.Segment] = []
@@ -75,6 +86,22 @@ public enum SpeechPreprocessor {
 		return segments
 	}
 
+	private static func findStandaloneImageMatches(
+		in html: String,
+		excluding containers: [ContainerMatch]
+	) -> [NSRange] {
+		let pattern = "<img[^>]*>"
+		guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+			return []
+		}
+		return regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { m in
+			let isNested = containers.contains { container in
+				NSLocationInRange(m.range.location, container.fullRange)
+			}
+			return isNested ? nil : m.range
+		}
+	}
+
 	private struct ContainerMatch {
 		let fullRange: NSRange
 		let tag: String
@@ -82,7 +109,11 @@ public enum SpeechPreprocessor {
 	}
 
 	private static func findNonListContainerMatches(in html: String) -> [ContainerMatch] {
-		let pattern = "<(p|h[1-6]|blockquote)[^>]*>([\\s\\S]*?)</\\1>"
+		// Note: `pre` must come before `p` in the alternation. ICU regex tries
+		// alternatives left-to-right; if `p` is first, `<pre>` matches as `<p>` plus
+		// extra characters, capturing tag="p" and then looking for `</p>` later in the
+		// document, which is wrong.
+		let pattern = "<(pre|p|h[1-6]|blockquote|figure)[^>]*>([\\s\\S]*?)</\\1>"
 		guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
 			return []
 		}
@@ -163,12 +194,48 @@ public enum SpeechPreprocessor {
 			return paragraphSegment(from: inner).map { [$0] } ?? []
 		case "blockquote":
 			return blockQuoteSegment(from: inner).map { [$0] } ?? []
+		case "figure":
+			return [figureSegment(from: inner)]
+		case "pre":
+			return [codeBlockSegment(from: inner)]
 		default:
 			if tag.hasPrefix("h"), let level = Int(tag.dropFirst()) {
 				return headingSegment(from: inner, level: level).map { [$0] } ?? []
 			}
 			return []
 		}
+	}
+
+	private static func figureSegment(from inner: String) -> SpeechContent.Segment {
+		let src = extractAttribute(from: inner, pattern: "src=[\"']([^\"']+)[\"']")
+		let alt = extractAttribute(from: inner, pattern: "alt=[\"']([^\"']*)[\"']")
+		let captionHTML = extractAttribute(
+			from: inner,
+			pattern: "<figcaption[^>]*>([\\s\\S]*?)</figcaption>"
+		)
+		let caption = captionHTML.map {
+			decodeHTMLEntities(stripInlineTags($0)).trimmingCharacters(in: .whitespacesAndNewlines)
+		}
+		return .figure(SpeechContent.ImageDescriptor(src: src, alt: alt, caption: caption))
+	}
+
+	private static func codeBlockSegment(from inner: String) -> SpeechContent.Segment {
+		let language = extractAttribute(
+			from: inner,
+			pattern: "class=[\"'][^\"']*language-([a-zA-Z0-9_+\\-]+)[^\"']*[\"']"
+		)
+		let stripped = stripInlineTags(inner)
+		let content = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		return .codeBlock(language: language, content: content)
+	}
+
+	private static func extractAttribute(from html: String, pattern: String) -> String? {
+		guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+		      let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+		      let range = Range(match.range(at: 1), in: html) else {
+			return nil
+		}
+		return String(html[range])
 	}
 
 	// MARK: - Per-tag dispatch helpers

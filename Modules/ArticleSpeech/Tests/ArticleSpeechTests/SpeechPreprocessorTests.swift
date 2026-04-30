@@ -168,4 +168,66 @@ struct SpeechPreprocessorTests {
 			.paragraph("After."),
 		])
 	}
+
+	@Test func standaloneImageProducesImageSegmentInOrder() {
+		let result = SpeechPreprocessor.preprocess(
+			html: "<p>Before.</p><img src=\"x.jpg\" alt=\"A cat\"><p>After.</p>",
+			articleID: "a1",
+			title: nil,
+			language: nil
+		)
+		#expect(result.segments == [
+			.paragraph("Before."),
+			.image(SpeechContent.ImageDescriptor(src: "x.jpg", alt: "A cat", caption: nil)),
+			.paragraph("After."),
+		])
+	}
+
+	@Test func figureWithCaptionProducesFigureSegment() {
+		let html = "<figure><img src=\"f.jpg\" alt=\"Fig\"><figcaption>The caption.</figcaption></figure>"
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments.count == 1)
+		guard case .figure(let descriptor) = result.segments.first else {
+			Issue.record("Expected a figure segment")
+			return
+		}
+		#expect(descriptor.src == "f.jpg")
+		#expect(descriptor.alt == "Fig")
+		#expect(descriptor.caption == "The caption.")
+	}
+
+	@Test func figureWithImgInsideDoesNotProduceSeparateImageSegment() {
+		let html = "<p>Before.</p><figure><img src=\"f.jpg\" alt=\"Fig\"></figure><p>After.</p>"
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments.count == 3)
+		#expect(result.segments[0] == .paragraph("Before."))
+		if case .figure = result.segments[1] {} else { Issue.record("Expected figure at index 1") }
+		#expect(result.segments[2] == .paragraph("After."))
+	}
+
+	@Test func codeBlockExtractsLanguageAndContent() {
+		let html = "<pre><code class=\"language-swift\">let x = 1</code></pre>"
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [.codeBlock(language: "swift", content: "let x = 1")])
+	}
+
+	@Test func codeBlockWithoutLanguageHasNilLanguage() {
+		let html = "<pre><code>let x = 1</code></pre>"
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [.codeBlock(language: nil, content: "let x = 1")])
+	}
+
+	@Test func paragraphsFiguresAndCodeInterleaveInDocumentOrder() {
+		let html = """
+		<p>Intro.</p><figure><img src="f.jpg" alt="A"><figcaption>Cap.</figcaption></figure>\
+		<p>Middle.</p><pre><code class="language-swift">let x = 1</code></pre><p>End.</p>
+		"""
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments.count == 5)
+		#expect(result.segments[0] == .paragraph("Intro."))
+		if case .figure = result.segments[1] {} else { Issue.record("Expected figure at index 1") }
+		#expect(result.segments[2] == .paragraph("Middle."))
+		#expect(result.segments[3] == .codeBlock(language: "swift", content: "let x = 1"))
+		#expect(result.segments[4] == .paragraph("End."))
+	}
 }
