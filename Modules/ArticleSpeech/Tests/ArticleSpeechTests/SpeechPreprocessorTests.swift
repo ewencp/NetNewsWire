@@ -230,4 +230,40 @@ struct SpeechPreprocessorTests {
 		#expect(result.segments[3] == .codeBlock(language: "swift", content: "let x = 1"))
 		#expect(result.segments[4] == .paragraph("End."))
 	}
+
+	@Test func tableWithRowsAndColumnsCountsBoth() {
+		let html = """
+		<table>\
+		<tr><th>A</th><th>B</th><th>C</th></tr>\
+		<tr><td>1</td><td>2</td><td>3</td></tr>\
+		<tr><td>4</td><td>5</td><td>6</td></tr>\
+		</table>
+		"""
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [.table(rowCount: 3, columnCount: 3)])
+	}
+
+	@Test func emptyTableProducesNilCounts() {
+		let result = SpeechPreprocessor.preprocess(
+			html: "<table></table>",
+			articleID: "a1",
+			title: nil,
+			language: nil
+		)
+		#expect(result.segments == [.table(rowCount: nil, columnCount: nil)])
+	}
+
+	@Test func paragraphsAndTablesInterleaveInDocumentOrder() {
+		let html = """
+		<p>Before.</p>\
+		<table><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr></table>\
+		<p>After.</p>
+		"""
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [
+			.paragraph("Before."),
+			.table(rowCount: 2, columnCount: 2),
+			.paragraph("After."),
+		])
+	}
 }

@@ -113,7 +113,7 @@ public enum SpeechPreprocessor {
 		// alternatives left-to-right; if `p` is first, `<pre>` matches as `<p>` plus
 		// extra characters, capturing tag="p" and then looking for `</p>` later in the
 		// document, which is wrong.
-		let pattern = "<(pre|p|h[1-6]|blockquote|figure)[^>]*>([\\s\\S]*?)</\\1>"
+		let pattern = "<(pre|p|h[1-6]|blockquote|figure|table)[^>]*>([\\s\\S]*?)</\\1>"
 		guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
 			return []
 		}
@@ -198,6 +198,8 @@ public enum SpeechPreprocessor {
 			return [figureSegment(from: inner)]
 		case "pre":
 			return [codeBlockSegment(from: inner)]
+		case "table":
+			return [tableSegment(from: inner)]
 		default:
 			if tag.hasPrefix("h"), let level = Int(tag.dropFirst()) {
 				return headingSegment(from: inner, level: level).map { [$0] } ?? []
@@ -227,6 +229,28 @@ public enum SpeechPreprocessor {
 		let stripped = stripInlineTags(inner)
 		let content = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
 		return .codeBlock(language: language, content: content)
+	}
+
+	private static func tableSegment(from inner: String) -> SpeechContent.Segment {
+		let rowPattern = "<tr[^>]*>([\\s\\S]*?)</tr>"
+		let rowRegex = try? NSRegularExpression(pattern: rowPattern, options: .caseInsensitive)
+		let rows = rowRegex?.matches(in: inner, range: NSRange(inner.startIndex..., in: inner)) ?? []
+		let rowCount = rows.isEmpty ? nil : rows.count
+		var maxCols: Int? = nil
+		for row in rows {
+			guard let rowContentRange = Range(row.range(at: 1), in: inner) else { continue }
+			let rowInner = String(inner[rowContentRange])
+			let cellPattern = "<(td|th)[^>]*>[\\s\\S]*?</\\1>"
+			let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: .caseInsensitive)
+			let cellCount = cellRegex?.matches(
+				in: rowInner,
+				range: NSRange(rowInner.startIndex..., in: rowInner)
+			).count ?? 0
+			if cellCount > 0 {
+				maxCols = max(maxCols ?? 0, cellCount)
+			}
+		}
+		return .table(rowCount: rowCount, columnCount: maxCols)
 	}
 
 	private static func extractAttribute(from html: String, pattern: String) -> String? {
