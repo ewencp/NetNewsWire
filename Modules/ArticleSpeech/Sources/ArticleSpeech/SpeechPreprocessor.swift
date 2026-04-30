@@ -20,8 +20,7 @@ public enum SpeechPreprocessor {
 			text = stripTagWithContent(text, tag: tag)
 		}
 
-		var segments: [SpeechContent.Segment] = []
-		extractParagraphs(from: text, into: &segments)
+		let segments = extractSegmentsInOrder(from: text)
 
 		return SpeechContent(
 			segments: segments,
@@ -31,23 +30,63 @@ public enum SpeechPreprocessor {
 		)
 	}
 
-	// MARK: - Extraction (incremental; more added in later tasks)
+	// MARK: - Unified walker (extended in later tasks)
 
-	private static func extractParagraphs(from html: String, into segments: inout [SpeechContent.Segment]) {
-		let pattern = "<p[^>]*>([\\s\\S]*?)</p>"
+	private static func extractSegmentsInOrder(from html: String) -> [SpeechContent.Segment] {
+		// Pattern matches any block-level container element we care about.
+		// Capture group 1: tag name; group 2: full content (lazy match).
+		let pattern = "<(p|h[1-6]|blockquote)[^>]*>([\\s\\S]*?)</\\1>"
 		guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
-			return
+			return []
 		}
+		var segments: [SpeechContent.Segment] = []
 		let matches = regex.matches(in: html, range: NSRange(html.startIndex..., in: html))
 		for match in matches {
-			guard let contentRange = Range(match.range(at: 1), in: html) else { continue }
+			guard let tagRange = Range(match.range(at: 1), in: html),
+			      let contentRange = Range(match.range(at: 2), in: html) else {
+				continue
+			}
+			let tag = String(html[tagRange]).lowercased()
 			let inner = String(html[contentRange])
-			let stripped = stripInlineTags(inner)
-			let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
-			if !decoded.isEmpty {
-				segments.append(.paragraph(decoded))
+
+			switch tag {
+			case "p":
+				if let segment = paragraphSegment(from: inner) {
+					segments.append(segment)
+				}
+			case "blockquote":
+				if let segment = blockQuoteSegment(from: inner) {
+					segments.append(segment)
+				}
+			default:
+				if tag.hasPrefix("h"), let level = Int(tag.dropFirst()) {
+					if let segment = headingSegment(from: inner, level: level) {
+						segments.append(segment)
+					}
+				}
 			}
 		}
+		return segments
+	}
+
+	// MARK: - Per-tag dispatch helpers
+
+	private static func paragraphSegment(from inner: String) -> SpeechContent.Segment? {
+		let stripped = stripInlineTags(inner)
+		let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		return decoded.isEmpty ? nil : .paragraph(decoded)
+	}
+
+	private static func blockQuoteSegment(from inner: String) -> SpeechContent.Segment? {
+		let stripped = stripInlineTags(inner)
+		let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		return decoded.isEmpty ? nil : .blockQuote(decoded)
+	}
+
+	private static func headingSegment(from inner: String, level: Int) -> SpeechContent.Segment? {
+		let stripped = stripInlineTags(inner)
+		let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		return decoded.isEmpty ? nil : .heading(level: level, decoded)
 	}
 
 	// MARK: - Helpers

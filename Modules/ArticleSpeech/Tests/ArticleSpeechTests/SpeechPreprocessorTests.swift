@@ -56,4 +56,60 @@ struct SpeechPreprocessorTests {
 		)
 		#expect(result.segments == [.paragraph("Café — bistro.")])
 	}
+
+	@Test func headingsCarryLevel() {
+		let result = SpeechPreprocessor.preprocess(
+			html: "<h2>Topic</h2><p>Body.</p>",
+			articleID: "a1",
+			title: nil,
+			language: nil
+		)
+		#expect(result.segments == [
+			.heading(level: 2, "Topic"),
+			.paragraph("Body."),
+		])
+	}
+
+	@Test func headingsAtAllLevels() {
+		for level in 1...6 {
+			let html = "<h\(level)>Section</h\(level)>"
+			let result = SpeechPreprocessor.preprocess(
+				html: html,
+				articleID: "a1",
+				title: nil,
+				language: nil
+			)
+			#expect(result.segments == [.heading(level: level, "Section")])
+		}
+	}
+
+	@Test func blockquotePreservesText() {
+		let result = SpeechPreprocessor.preprocess(
+			html: "<blockquote>Quote text.</blockquote>",
+			articleID: "a1",
+			title: nil,
+			language: nil
+		)
+		#expect(result.segments == [.blockQuote("Quote text.")])
+	}
+
+	@Test func inlineFormattingTagsAreStripped() {
+		let result = SpeechPreprocessor.preprocess(
+			html: "<p>Hello <em>brave</em> <strong>new</strong> <a href=\"x\">world</a>.</p>",
+			articleID: "a1",
+			title: nil,
+			language: nil
+		)
+		#expect(result.segments == [.paragraph("Hello brave new world.")])
+	}
+
+	@Test func scriptAndStyleTagsAreRemovedEntirely() {
+		let result = SpeechPreprocessor.preprocess(
+			html: "<script>alert('x')</script><style>p{color:red}</style><p>Body.</p>",
+			articleID: "a1",
+			title: nil,
+			language: nil
+		)
+		#expect(result.segments == [.paragraph("Body.")])
+	}
 }
