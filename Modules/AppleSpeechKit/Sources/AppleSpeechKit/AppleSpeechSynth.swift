@@ -66,6 +66,7 @@ public final class AppleSpeechSynth: SpeechSynth {
 				return
 			}
 			state = .preparing
+			activateAudioSessionIfNeeded()
 			engine.speak(first)
 			return
 		}
@@ -172,6 +173,31 @@ public final class AppleSpeechSynth: SpeechSynth {
 			observer.speechSynth(self, didChangeState: state)
 		}
 	}
+
+	// MARK: - Audio session (iOS only)
+
+	#if os(iOS)
+	private func activateAudioSessionIfNeeded() {
+		do {
+			let avAudioSession = AVAudioSession.sharedInstance()
+			try avAudioSession.setCategory(.playback, mode: .spokenAudio, options: [])
+			try avAudioSession.setActive(true, options: [])
+		} catch {
+			// Non-fatal — playback still works without optimal session config.
+		}
+	}
+
+	private func deactivateAudioSession() {
+		do {
+			try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+		} catch {
+			// Ignore.
+		}
+	}
+	#else
+	private func activateAudioSessionIfNeeded() {}
+	private func deactivateAudioSession() {}
+	#endif
 }
 
 // MARK: - AppleSpeechEngineDelegate
@@ -192,6 +218,7 @@ extension AppleSpeechSynth: AppleSpeechEngineDelegate {
 		} else {
 			pendingAction = .none
 			state = .finished
+			deactivateAudioSession()
 		}
 	}
 
@@ -211,6 +238,7 @@ extension AppleSpeechSynth: AppleSpeechEngineDelegate {
 			currentIndex = 0
 			guard let first = newAVSpeechUtterances.first else {
 				state = .idle
+				deactivateAudioSession()
 				return
 			}
 			state = .preparing
@@ -225,11 +253,13 @@ extension AppleSpeechSynth: AppleSpeechEngineDelegate {
 			avSpeechUtterances = []
 			currentIndex = 0
 			state = .idle
+			deactivateAudioSession()
 		case .none, .advance:
 			pendingAction = .none
 			avSpeechUtterances = []
 			currentIndex = 0
 			state = .idle
+			deactivateAudioSession()
 		}
 	}
 }
