@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public protocol SpeechSynth: AnyObject {
 
 	var state: SpeechSynthState { get }
@@ -18,6 +19,7 @@ public protocol SpeechSynth: AnyObject {
 	func removeObserver(_ observer: SpeechSynthObserver)
 }
 
+@MainActor
 public protocol SpeechSynthObserver: AnyObject {
 	func speechSynth(_ synth: SpeechSynth, didChangeState state: SpeechSynthState)
 }
