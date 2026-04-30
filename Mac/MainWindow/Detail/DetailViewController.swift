@@ -136,7 +136,10 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 			updatedSource = nil
 		}
 		guard let (article, sourceHTML) = updatedSource else { return }
-		coordinator.startPlayback(for: article, sourceHTML: sourceHTML)
+		// Preserve the user's paused state across the content swap.
+		let wasPaused: Bool
+		if case .paused = coordinator.state { wasPaused = true } else { wasPaused = false }
+		coordinator.startPlayback(for: article, sourceHTML: sourceHTML, keepPaused: wasPaused)
 	}
 
 	func showDetail(for mode: TimelineSourceMode) {

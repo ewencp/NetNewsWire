@@ -20,6 +20,11 @@ public final class SpeechCoordinator {
 	private let synth: SpeechSynth
 	private let observers = NSHashTable<AnyObject>.weakObjects()
 
+	/// Set when a content swap (e.g., summarize while paused) wants to preserve
+	/// the paused state across the new playback. Cleared after the synth's first
+	/// `.speaking` transition triggers a re-pause.
+	private var pauseAfterStart: Bool = false
+
 	private init() {
 		self.synth = AppleSpeechSynth()
 		self.synth.addObserver(self)
@@ -33,7 +38,13 @@ public final class SpeechCoordinator {
 
 	// MARK: - Public API
 
-	public func startPlayback(for article: Article, sourceHTML: String) {
+	/// Start playback for the given article and source HTML.
+	///
+	/// - Parameter keepPaused: When true, the synth will be re-paused immediately
+	///   after the first block starts speaking. Used by content-swap flows
+	///   (Reader View / Summarize toggles on the playing article) to preserve
+	///   the user's paused state across the swap.
+	public func startPlayback(for article: Article, sourceHTML: String, keepPaused: Bool = false) {
 		let articleID = article.articleID
 		let title = article.title
 
@@ -51,6 +62,7 @@ public final class SpeechCoordinator {
 
 			playingArticleID = articleID
 			playingArticleTitle = title
+			pauseAfterStart = keepPaused
 			notifyObservers()
 			synth.play(blocks: blocks, voice: voice, rate: rate)
 		}
@@ -123,6 +135,12 @@ extension SpeechCoordinator: SpeechSynthObserver {
 		case .finished, .idle:
 			playingArticleID = nil
 			playingArticleTitle = nil
+			pauseAfterStart = false
+		case .speaking:
+			if pauseAfterStart {
+				pauseAfterStart = false
+				synth.pause()
+			}
 		default:
 			break
 		}

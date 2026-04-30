@@ -144,7 +144,11 @@ final class SpeechTransportBar: NSView {
 		switch state {
 		case .speaking(let i, let n), .paused(let i, let n):
 			progressBar.doubleValue = n > 0 ? Double(i + 1) / Double(n) : 0
-		default:
+		case .preparing:
+			// Leave progress untouched during skip/replace transitions to avoid
+			// a visible flicker to zero between didCancel and didStart.
+			break
+		case .idle, .finished, .failed:
 			progressBar.doubleValue = 0
 		}
 		switch state {
