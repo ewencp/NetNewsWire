@@ -85,14 +85,27 @@ public final class AppleSpeechSynth: SpeechSynth {
 
 	public func skipForward() {
 		guard !avSpeechUtterances.isEmpty else { return }
-		let next = min(currentIndex + 1, avSpeechUtterances.count - 1)
+		// Compound rapid skips: if a skip is already pending, advance from its target.
+		let baseIndex: Int
+		if case .skipTo(let pending) = pendingAction {
+			baseIndex = pending
+		} else {
+			baseIndex = currentIndex
+		}
+		let next = min(baseIndex + 1, avSpeechUtterances.count - 1)
 		pendingAction = .skipTo(next)
 		engine.stopSpeaking(at: .immediate)
 	}
 
 	public func skipBackward() {
 		guard !avSpeechUtterances.isEmpty else { return }
-		let prev = max(currentIndex - 1, 0)
+		let baseIndex: Int
+		if case .skipTo(let pending) = pendingAction {
+			baseIndex = pending
+		} else {
+			baseIndex = currentIndex
+		}
+		let prev = max(baseIndex - 1, 0)
 		pendingAction = .skipTo(prev)
 		engine.stopSpeaking(at: .immediate)
 	}
