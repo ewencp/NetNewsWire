@@ -51,6 +51,10 @@
 		6E1BB78A2F9C5C2500930708 /* ArticleAI in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 6E1BB7882F9C5C2500930708 /* ArticleAI */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		6E1BB78C2F9C5C2500930708 /* OllamaKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6E1BB78B2F9C5C2500930708 /* OllamaKit */; };
 		6E1BB78D2F9C5C2500930708 /* OllamaKit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 6E1BB78B2F9C5C2500930708 /* OllamaKit */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		6E39CC342FA403E000A1308B /* SpeechCoordinatorKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6E39CC332FA403E000A1308B /* SpeechCoordinatorKit */; };
+		6E39CC352FA403E000A1308B /* SpeechCoordinatorKit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 6E39CC332FA403E000A1308B /* SpeechCoordinatorKit */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		6E39CC372FA403E900A1308B /* SpeechCoordinatorKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6E39CC362FA403E900A1308B /* SpeechCoordinatorKit */; };
+		6E39CC382FA403E900A1308B /* SpeechCoordinatorKit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 6E39CC362FA403E900A1308B /* SpeechCoordinatorKit */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		6ED9C4BB2FA3CA40007ECE90 /* AppleSpeechKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6ED9C4BA2FA3CA40007ECE90 /* AppleSpeechKit */; };
 		6ED9C4BC2FA3CA40007ECE90 /* AppleSpeechKit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 6ED9C4BA2FA3CA40007ECE90 /* AppleSpeechKit */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		6ED9C4BE2FA3CA47007ECE90 /* AppleSpeechKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6ED9C4BD2FA3CA47007ECE90 /* AppleSpeechKit */; };
@@ -226,6 +230,7 @@
 				513F32782593EE6F0003048F /* Secrets in Embed Frameworks */,
 				843E2F1B2CF2B8C500ED170F /* RSWeb in Embed Frameworks */,
 				513F327B2593EE6F0003048F /* SyncDatabase in Embed Frameworks */,
+				6E39CC352FA403E000A1308B /* SpeechCoordinatorKit in Embed Frameworks */,
 				84EE3F162DB8A0A0009D3A8D /* RSTree in Embed Frameworks */,
 				6E1BB78D2F9C5C2500930708 /* OllamaKit in Embed Frameworks */,
 				513F32722593EE6F0003048F /* Articles in Embed Frameworks */,
@@ -273,6 +278,7 @@
 				513277442590FBB60064F1E7 /* Account in Embed Frameworks */,
 				5132775F2590FC640064F1E7 /* Articles in Embed Frameworks */,
 				843E2F182CF2B8A700ED170F /* RSWeb in Embed Frameworks */,
+				6E39CC382FA403E900A1308B /* SpeechCoordinatorKit in Embed Frameworks */,
 				84EE3F132DB8A088009D3A8D /* RSTree in Embed Frameworks */,
 				6E1BB7872F9C5C0400930708 /* OllamaKit in Embed Frameworks */,
 				513277662590FC780064F1E7 /* Secrets in Embed Frameworks */,
@@ -597,6 +603,7 @@
 				8424B31B2DB73D530053AA11 /* RSParser in Frameworks */,
 				516B695F24D2F33B00B5702F /* Account in Frameworks */,
 				CEE687C900324CE2908FCF98 /* ErrorLog in Frameworks */,
+				6E39CC342FA403E000A1308B /* SpeechCoordinatorKit in Frameworks */,
 				6E1BB7892F9C5C2500930708 /* ArticleAI in Frameworks */,
 				843E2F1A2CF2B8C500ED170F /* RSWeb in Frameworks */,
 				513F32712593EE6F0003048F /* Articles in Frameworks */,
@@ -613,6 +620,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6E39CC372FA403E900A1308B /* SpeechCoordinatorKit in Frameworks */,
 				8424B3182DB73D4C0053AA11 /* RSParser in Frameworks */,
 				848E84D02DB749440023F3BA /* RSCoreResources in Frameworks */,
 				513277642590FC640064F1E7 /* SyncDatabase in Frameworks */,
@@ -876,6 +884,7 @@
 				6E1BB78B2F9C5C2500930708 /* OllamaKit */,
 				6EEF9B932FA3C6C8006FBB04 /* ArticleSpeech */,
 				6ED9C4BD2FA3CA47007ECE90 /* AppleSpeechKit */,
+				6E39CC332FA403E000A1308B /* SpeechCoordinatorKit */,
 			);
 			productName = "NetNewsWire-iOS";
 			productReference = 840D617C2029031C009BC708 /* NNW Remix.app */;
@@ -927,6 +936,7 @@
 				6E1BB7852F9C5C0400930708 /* OllamaKit */,
 				6EEF9B902FA3C6BF006FBB04 /* ArticleSpeech */,
 				6ED9C4BA2FA3CA40007ECE90 /* AppleSpeechKit */,
+				6E39CC362FA403E900A1308B /* SpeechCoordinatorKit */,
 			);
 			productName = NetNewsWire;
 			productReference = 849C64601ED37A5D003D8FC0 /* NNW Remix.app */;
@@ -1042,6 +1052,7 @@
 				6E1BB7802F9C5BC000930708 /* XCLocalSwiftPackageReference "Modules/OllamaKit" */,
 				6EEF9B8F2FA3C697006FBB04 /* XCLocalSwiftPackageReference "Modules/ArticleSpeech" */,
 				6ED9C4B92FA3C9FD007ECE90 /* XCLocalSwiftPackageReference "Modules/AppleSpeechKit" */,
+				6E39CC2C2FA403CC00A1308B /* XCLocalSwiftPackageReference "Modules/SpeechCoordinatorKit" */,
 			);
 			preferredProjectObjectVersion = 46;
 			productRefGroup = 849C64611ED37A5D003D8FC0 /* Products */;
@@ -1661,6 +1672,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Modules/OllamaKit;
 		};
+		6E39CC2C2FA403CC00A1308B /* XCLocalSwiftPackageReference "Modules/SpeechCoordinatorKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Modules/SpeechCoordinatorKit;
+		};
 		6ED9C4B92FA3C9FD007ECE90 /* XCLocalSwiftPackageReference "Modules/AppleSpeechKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Modules/AppleSpeechKit;
@@ -1791,6 +1806,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6E1BB7802F9C5BC000930708 /* XCLocalSwiftPackageReference "Modules/OllamaKit" */;
 			productName = OllamaKit;
+		};
+		6E39CC332FA403E000A1308B /* SpeechCoordinatorKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6E39CC2C2FA403CC00A1308B /* XCLocalSwiftPackageReference "Modules/SpeechCoordinatorKit" */;
+			productName = SpeechCoordinatorKit;
+		};
+		6E39CC362FA403E900A1308B /* SpeechCoordinatorKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6E39CC2C2FA403CC00A1308B /* XCLocalSwiftPackageReference "Modules/SpeechCoordinatorKit" */;
+			productName = SpeechCoordinatorKit;
 		};
 		6ED9C4BA2FA3CA40007ECE90 /* AppleSpeechKit */ = {
 			isa = XCSwiftPackageProductDependency;
