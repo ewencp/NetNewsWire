@@ -12,6 +12,8 @@ import RSCore
 import Articles
 import RSWeb
 import ArticleAI
+import ArticleSpeech
+import SpeechCoordinatorKit
 
 enum DetailState: Equatable {
 	case noSelection
@@ -32,6 +34,13 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 
 	var windowState: DetailWindowState {
 		currentWebViewController.windowState
+	}
+
+	var currentDetailState: DetailState {
+		switch currentSourceMode {
+		case .regular: return detailStateForRegular
+		case .search:  return detailStateForSearch
+		}
 	}
 
 	private var currentWebViewController: DetailWebViewController! {
@@ -65,6 +74,15 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 
 	private var isArticleContentJavascriptEnabled = AppDefaults.shared.isArticleContentJavascriptEnabled
 
+	private lazy var speechTransportBar: SpeechTransportBar = {
+		let bar = SpeechTransportBar()
+		bar.translatesAutoresizingMaskIntoConstraints = false
+		bar.isHidden = true
+		return bar
+	}()
+
+	private var speechTransportBarHeightConstraint: NSLayoutConstraint?
+
 	override func viewDidLoad() {
 		currentWebViewController = regularWebViewController
 		NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -72,6 +90,33 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 				self?.userDefaultsDidChange()
 			}
 		}
+		installSpeechTransportBar()
+		SpeechCoordinator.shared.addObserver(self)
+	}
+
+	private func installSpeechTransportBar() {
+		view.addSubview(speechTransportBar)
+		let height = speechTransportBar.heightAnchor.constraint(equalToConstant: 0)
+		speechTransportBarHeightConstraint = height
+		NSLayoutConstraint.activate([
+			speechTransportBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+			speechTransportBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+			speechTransportBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+			height
+		])
+		// Storyboard pins containerView to the bottom of view; replace that constraint
+		// so the container's bottom follows the transport bar's top instead.
+		for constraint in view.constraints {
+			let firstIsContainer = (constraint.firstItem as? NSView) === containerView
+			let secondIsContainer = (constraint.secondItem as? NSView) === containerView
+			let firstIsView = (constraint.firstItem as? NSView) === view
+			let secondIsView = (constraint.secondItem as? NSView) === view
+			let touchesBottom = constraint.firstAttribute == .bottom || constraint.secondAttribute == .bottom
+			if touchesBottom && ((firstIsContainer && secondIsView) || (secondIsContainer && firstIsView)) {
+				constraint.isActive = false
+			}
+		}
+		containerView.bottomAnchor.constraint(equalTo: speechTransportBar.topAnchor).isActive = true
 	}
 
 	// MARK: - API
@@ -181,5 +226,32 @@ private extension DetailViewController {
 			currentWebViewController = searchWebViewController
 			searchWebViewController!.state = detailStateForSearch
 		}
+	}
+}
+
+// MARK: - SpeechCoordinatorObserver
+
+extension DetailViewController: SpeechCoordinatorObserver {
+
+	public func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
+		updateSpeechTransportBar()
+	}
+
+	private func updateSpeechTransportBar() {
+		let coordinator = SpeechCoordinator.shared
+		let shouldShow = coordinator.state.isActive
+		speechTransportBarHeightConstraint?.constant = shouldShow ? 108 : 0
+		speechTransportBar.isHidden = !shouldShow
+		speechTransportBar.update(state: coordinator.state, title: coordinator.playingArticleTitle)
+		NSAnimationContext.runAnimationGroup { context in
+			context.duration = 0.2
+			view.layoutSubtreeIfNeeded()
+		}
+	}
+}
+
+extension DetailViewController: SpeechTransportBarDelegate {
+	func speechTransportBarDidTapTitle(_ bar: SpeechTransportBar) {
+		// Future: navigate timeline to the playing article.
 	}
 }
