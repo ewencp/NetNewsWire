@@ -33,40 +33,142 @@ public enum SpeechPreprocessor {
 	// MARK: - Unified walker (extended in later tasks)
 
 	private static func extractSegmentsInOrder(from html: String) -> [SpeechContent.Segment] {
-		// Pattern matches any block-level container element we care about.
-		// Capture group 1: tag name; group 2: full content (lazy match).
+		// Lists nest within themselves, which lazy-regex matching can't handle correctly
+		// (the first `</ul>` consumed by the outer match is the inner closing tag).
+		// We find non-list containers via regex and top-level lists via depth counting,
+		// then merge by document position.
+		let nonListMatches = findNonListContainerMatches(in: html)
+		let listMatches = findTopLevelListMatches(in: html).filter { listMatch in
+			!nonListMatches.contains { container in
+				NSLocationInRange(listMatch.fullRange.location, container.fullRange)
+			}
+		}
+
+		struct OrderedMatch {
+			let location: Int
+			let dispatch: () -> [SpeechContent.Segment]
+		}
+
+		var ordered: [OrderedMatch] = []
+		for m in nonListMatches {
+			ordered.append(OrderedMatch(location: m.fullRange.location) {
+				guard let inner = Range(m.contentRange, in: html).map({ String(html[$0]) }) else {
+					return []
+				}
+				return dispatchNonListContainer(tag: m.tag, inner: inner)
+			})
+		}
+		for m in listMatches {
+			ordered.append(OrderedMatch(location: m.fullRange.location) {
+				guard let inner = Range(m.contentRange, in: html).map({ String(html[$0]) }) else {
+					return []
+				}
+				return extractListItems(from: inner, depth: 0, isOrdered: m.tag == "ol")
+			})
+		}
+		ordered.sort { $0.location < $1.location }
+
+		var segments: [SpeechContent.Segment] = []
+		for m in ordered {
+			segments.append(contentsOf: m.dispatch())
+		}
+		return segments
+	}
+
+	private struct ContainerMatch {
+		let fullRange: NSRange
+		let tag: String
+		let contentRange: NSRange
+	}
+
+	private static func findNonListContainerMatches(in html: String) -> [ContainerMatch] {
 		let pattern = "<(p|h[1-6]|blockquote)[^>]*>([\\s\\S]*?)</\\1>"
 		guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
 			return []
 		}
-		var segments: [SpeechContent.Segment] = []
-		let matches = regex.matches(in: html, range: NSRange(html.startIndex..., in: html))
-		for match in matches {
-			guard let tagRange = Range(match.range(at: 1), in: html),
-			      let contentRange = Range(match.range(at: 2), in: html) else {
-				continue
-			}
+		return regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { m in
+			guard let tagRange = Range(m.range(at: 1), in: html) else { return nil }
 			let tag = String(html[tagRange]).lowercased()
-			let inner = String(html[contentRange])
+			return ContainerMatch(fullRange: m.range, tag: tag, contentRange: m.range(at: 2))
+		}
+	}
 
-			switch tag {
-			case "p":
-				if let segment = paragraphSegment(from: inner) {
-					segments.append(segment)
-				}
-			case "blockquote":
-				if let segment = blockQuoteSegment(from: inner) {
-					segments.append(segment)
-				}
-			default:
-				if tag.hasPrefix("h"), let level = Int(tag.dropFirst()) {
-					if let segment = headingSegment(from: inner, level: level) {
-						segments.append(segment)
+	/// Finds top-level `<ul>` and `<ol>` ranges via depth counting. This handles
+	/// nested lists correctly (lazy regex would match the first nested `</ul>`).
+	private static func findTopLevelListMatches(in html: String) -> [ContainerMatch] {
+		let nsHTML = html as NSString
+		let openPattern = "<(ul|ol)[^>]*>"
+		let closePattern = "</(ul|ol)>"
+		guard let openRegex = try? NSRegularExpression(pattern: openPattern, options: .caseInsensitive),
+		      let closeRegex = try? NSRegularExpression(pattern: closePattern, options: .caseInsensitive) else {
+			return []
+		}
+		struct Event {
+			let position: Int
+			let isOpen: Bool
+			let tag: String
+			let range: NSRange
+			let openTagLength: Int
+		}
+		var events: [Event] = []
+		let fullRange = NSRange(location: 0, length: nsHTML.length)
+		for m in openRegex.matches(in: html, range: fullRange) {
+			let tag = nsHTML.substring(with: m.range(at: 1)).lowercased()
+			events.append(Event(
+				position: m.range.location,
+				isOpen: true,
+				tag: tag,
+				range: m.range,
+				openTagLength: m.range.length
+			))
+		}
+		for m in closeRegex.matches(in: html, range: fullRange) {
+			let tag = nsHTML.substring(with: m.range(at: 1)).lowercased()
+			events.append(Event(
+				position: m.range.location,
+				isOpen: false,
+				tag: tag,
+				range: m.range,
+				openTagLength: 0
+			))
+		}
+		events.sort { $0.position < $1.position }
+
+		var stack: [Event] = []
+		var results: [ContainerMatch] = []
+		for event in events {
+			if event.isOpen {
+				stack.append(event)
+			} else {
+				if let opened = stack.last, opened.tag == event.tag {
+					stack.removeLast()
+					if stack.isEmpty {
+						let startLoc = opened.range.location
+						let endLoc = event.range.location + event.range.length
+						let full = NSRange(location: startLoc, length: endLoc - startLoc)
+						let contentStart = opened.range.location + opened.openTagLength
+						let contentEnd = event.range.location
+						let content = NSRange(location: contentStart, length: contentEnd - contentStart)
+						results.append(ContainerMatch(fullRange: full, tag: opened.tag, contentRange: content))
 					}
 				}
 			}
 		}
-		return segments
+		return results
+	}
+
+	private static func dispatchNonListContainer(tag: String, inner: String) -> [SpeechContent.Segment] {
+		switch tag {
+		case "p":
+			return paragraphSegment(from: inner).map { [$0] } ?? []
+		case "blockquote":
+			return blockQuoteSegment(from: inner).map { [$0] } ?? []
+		default:
+			if tag.hasPrefix("h"), let level = Int(tag.dropFirst()) {
+				return headingSegment(from: inner, level: level).map { [$0] } ?? []
+			}
+			return []
+		}
 	}
 
 	// MARK: - Per-tag dispatch helpers
@@ -87,6 +189,120 @@ public enum SpeechPreprocessor {
 		let stripped = stripInlineTags(inner)
 		let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
 		return decoded.isEmpty ? nil : .heading(level: level, decoded)
+	}
+
+	// MARK: - List extraction (recursive, depth-aware)
+
+	/// Finds top-level `<li>` ranges within a list's content, ignoring `<li>` elements
+	/// inside nested `<ul>`/`<ol>`. Lazy regex would match the first inner `</li>`.
+	private static func findTopLevelListItemRanges(in html: String) -> [(itemRange: NSRange, contentRange: NSRange, openTagLength: Int)] {
+		let nsHTML = html as NSString
+		let openListPattern = "<(ul|ol)[^>]*>"
+		let closeListPattern = "</(ul|ol)>"
+		let openItemPattern = "<li[^>]*>"
+		let closeItemPattern = "</li>"
+		guard let openListRegex = try? NSRegularExpression(pattern: openListPattern, options: .caseInsensitive),
+		      let closeListRegex = try? NSRegularExpression(pattern: closeListPattern, options: .caseInsensitive),
+		      let openItemRegex = try? NSRegularExpression(pattern: openItemPattern, options: .caseInsensitive),
+		      let closeItemRegex = try? NSRegularExpression(pattern: closeItemPattern, options: .caseInsensitive) else {
+			return []
+		}
+		enum EventKind { case openList, closeList, openItem, closeItem }
+		struct Event {
+			let position: Int
+			let kind: EventKind
+			let range: NSRange
+		}
+		var events: [Event] = []
+		let fullRange = NSRange(location: 0, length: nsHTML.length)
+		for m in openListRegex.matches(in: html, range: fullRange) {
+			events.append(Event(position: m.range.location, kind: .openList, range: m.range))
+		}
+		for m in closeListRegex.matches(in: html, range: fullRange) {
+			events.append(Event(position: m.range.location, kind: .closeList, range: m.range))
+		}
+		for m in openItemRegex.matches(in: html, range: fullRange) {
+			events.append(Event(position: m.range.location, kind: .openItem, range: m.range))
+		}
+		for m in closeItemRegex.matches(in: html, range: fullRange) {
+			events.append(Event(position: m.range.location, kind: .closeItem, range: m.range))
+		}
+		events.sort { $0.position < $1.position }
+
+		var listDepth = 0
+		var openItemAtThisLevel: Event? = nil
+		var results: [(itemRange: NSRange, contentRange: NSRange, openTagLength: Int)] = []
+
+		for event in events {
+			switch event.kind {
+			case .openList:
+				listDepth += 1
+			case .closeList:
+				listDepth -= 1
+			case .openItem:
+				// Only consider <li>s at the top level of the input (listDepth == 0
+				// since we're already inside our list's content; nested <ul>/<ol>
+				// pushes us to listDepth > 0).
+				if listDepth == 0 {
+					openItemAtThisLevel = event
+				}
+			case .closeItem:
+				if listDepth == 0, let opened = openItemAtThisLevel {
+					let startLoc = opened.range.location
+					let endLoc = event.range.location + event.range.length
+					let full = NSRange(location: startLoc, length: endLoc - startLoc)
+					let contentStart = opened.range.location + opened.range.length
+					let contentEnd = event.range.location
+					let content = NSRange(location: contentStart, length: contentEnd - contentStart)
+					results.append((full, content, opened.range.length))
+					openItemAtThisLevel = nil
+				}
+			}
+		}
+		return results
+	}
+
+	private static func extractListItems(
+		from html: String,
+		depth: Int,
+		isOrdered: Bool
+	) -> [SpeechContent.Segment] {
+		let nsHTML = html as NSString
+		let itemRanges = findTopLevelListItemRanges(in: html)
+		var segments: [SpeechContent.Segment] = []
+		var index = 1
+		for item in itemRanges {
+			let inner = nsHTML.substring(with: item.contentRange)
+
+			// Find nested top-level lists inside this item.
+			let nestedListMatches = findTopLevelListMatches(in: inner)
+
+			let textPortion: String
+			if let firstNested = nestedListMatches.first {
+				let textEnd = firstNested.fullRange.location
+				textPortion = (inner as NSString).substring(with: NSRange(location: 0, length: textEnd))
+			} else {
+				textPortion = inner
+			}
+			let stripped = stripInlineTags(textPortion)
+			let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+			let ordering: SpeechContent.ListOrdering = isOrdered ? .ordered(index: index) : .unordered
+			if !decoded.isEmpty {
+				segments.append(.listItem(depth: depth, ordering: ordering, decoded))
+			}
+
+			// Recurse into any nested lists, in document order.
+			for nested in nestedListMatches {
+				let nestedInner = (inner as NSString).substring(with: nested.contentRange)
+				segments.append(contentsOf: extractListItems(
+					from: nestedInner,
+					depth: depth + 1,
+					isOrdered: nested.tag == "ol"
+				))
+			}
+			index += 1
+		}
+		return segments
 	}
 
 	// MARK: - Helpers
