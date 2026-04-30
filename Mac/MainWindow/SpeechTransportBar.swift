@@ -16,11 +16,21 @@ final class SpeechTransportBar: NSView {
 
 	weak var delegate: SpeechTransportBarDelegate?
 
+	private let topSeparator: NSBox = {
+		let box = NSBox()
+		box.boxType = .separator
+		box.translatesAutoresizingMaskIntoConstraints = false
+		return box
+	}()
+
 	private let titleButton: NSButton = {
 		let button = NSButton()
+		button.bezelStyle = .accessoryBarAction
 		button.isBordered = false
-		button.alignment = .left
+		button.alignment = .center
 		button.lineBreakMode = .byTruncatingTail
+		button.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+		button.contentTintColor = .labelColor
 		button.translatesAutoresizingMaskIntoConstraints = false
 		return button
 	}()
@@ -50,14 +60,18 @@ final class SpeechTransportBar: NSView {
 		commonInit()
 	}
 
-	private func commonInit() {
-		wantsLayer = true
-		layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+	override var isOpaque: Bool { true }
 
+	override func draw(_ dirtyRect: NSRect) {
+		NSColor.windowBackgroundColor.set()
+		dirtyRect.intersection(bounds).fill()
+	}
+
+	private func commonInit() {
 		titleButton.target = self
 		titleButton.action = #selector(titleTapped(_:))
+		addSubview(topSeparator)
 		addSubview(titleButton)
-
 		addSubview(progressBar)
 
 		setupControlButton(stopButton, symbol: "xmark", action: #selector(stopTapped(_:)))
@@ -65,38 +79,58 @@ final class SpeechTransportBar: NSView {
 		setupControlButton(playPauseButton, symbol: "play.fill", action: #selector(playPauseTapped(_:)))
 		setupControlButton(skipForwardButton, symbol: "forward.fill", action: #selector(skipForwardTapped(_:)))
 
+		// Make play/pause slightly larger.
+		playPauseButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+		stopButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+		skipBackwardButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+		skipForwardButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+
 		let controlsStack = NSStackView(views: [skipBackwardButton, playPauseButton, skipForwardButton])
 		controlsStack.orientation = .horizontal
-		controlsStack.spacing = 16
+		controlsStack.spacing = 24
+		controlsStack.alignment = .centerY
 		controlsStack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(controlsStack)
 		addSubview(stopButton)
 		stopButton.translatesAutoresizingMaskIntoConstraints = false
 
 		NSLayoutConstraint.activate([
-			titleButton.topAnchor.constraint(equalTo: topAnchor, constant: 6),
-			titleButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-			titleButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+			topSeparator.topAnchor.constraint(equalTo: topAnchor),
+			topSeparator.leadingAnchor.constraint(equalTo: leadingAnchor),
+			topSeparator.trailingAnchor.constraint(equalTo: trailingAnchor),
+			topSeparator.heightAnchor.constraint(equalToConstant: 1),
+
+			titleButton.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+			titleButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+			titleButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
 			titleButton.heightAnchor.constraint(equalToConstant: 22),
 
-			progressBar.topAnchor.constraint(equalTo: titleButton.bottomAnchor, constant: 6),
-			progressBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-			progressBar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-			progressBar.heightAnchor.constraint(equalToConstant: 4),
+			progressBar.topAnchor.constraint(equalTo: titleButton.bottomAnchor, constant: 8),
+			progressBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+			progressBar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+			progressBar.heightAnchor.constraint(equalToConstant: 6),
 
 			stopButton.centerYAnchor.constraint(equalTo: controlsStack.centerYAnchor),
-			stopButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+			stopButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+			stopButton.widthAnchor.constraint(equalToConstant: 28),
+			stopButton.heightAnchor.constraint(equalToConstant: 28),
 
-			controlsStack.topAnchor.constraint(equalTo: progressBar.bottomAnchor, constant: 8),
+			controlsStack.topAnchor.constraint(equalTo: progressBar.bottomAnchor, constant: 12),
 			controlsStack.centerXAnchor.constraint(equalTo: centerXAnchor),
-			controlsStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8)
+			controlsStack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -10)
 		])
+
+		[stopButton, skipBackwardButton, playPauseButton, skipForwardButton].forEach { button in
+			button.widthAnchor.constraint(greaterThanOrEqualToConstant: 28).isActive = true
+			button.heightAnchor.constraint(greaterThanOrEqualToConstant: 28).isActive = true
+		}
 	}
 
 	private func setupControlButton(_ button: NSButton, symbol: String, action: Selector) {
 		button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-		button.bezelStyle = .recessed
+		button.bezelStyle = .accessoryBarAction
 		button.isBordered = false
+		button.contentTintColor = .controlAccentColor
 		button.target = self
 		button.action = action
 		button.translatesAutoresizingMaskIntoConstraints = false
@@ -105,7 +139,8 @@ final class SpeechTransportBar: NSView {
 	// MARK: - Public update API
 
 	func update(state: SpeechSynthState, title: String?) {
-		titleButton.title = title ?? ""
+		let displayTitle = title?.isEmpty == false ? title : NSLocalizedString("(Untitled article)", comment: "Untitled article")
+		titleButton.title = displayTitle ?? ""
 		switch state {
 		case .speaking(let i, let n), .paused(let i, let n):
 			progressBar.doubleValue = n > 0 ? Double(i + 1) / Double(n) : 0

@@ -852,6 +852,7 @@ extension MainWindowController: TimelineContainerViewControllerDelegate {
 		}
 
 		detailViewController?.setState(detailState, mode: mode)
+		updateSpeechToolbarItem()
 	}
 
 	func timelineRequestedFeedSelection(_: TimelineContainerViewController, feed: Feed) {

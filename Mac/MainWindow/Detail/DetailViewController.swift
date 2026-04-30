@@ -95,7 +95,8 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 	}
 
 	private func installSpeechTransportBar() {
-		view.addSubview(speechTransportBar)
+		// Add the bar as the topmost subview so it overlays the WKWebView when active.
+		view.addSubview(speechTransportBar, positioned: .above, relativeTo: nil)
 		let height = speechTransportBar.heightAnchor.constraint(equalToConstant: 0)
 		speechTransportBarHeightConstraint = height
 		NSLayoutConstraint.activate([
@@ -104,19 +105,6 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 			speechTransportBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 			height
 		])
-		// Storyboard pins containerView to the bottom of view; replace that constraint
-		// so the container's bottom follows the transport bar's top instead.
-		for constraint in view.constraints {
-			let firstIsContainer = (constraint.firstItem as? NSView) === containerView
-			let secondIsContainer = (constraint.secondItem as? NSView) === containerView
-			let firstIsView = (constraint.firstItem as? NSView) === view
-			let secondIsView = (constraint.secondItem as? NSView) === view
-			let touchesBottom = constraint.firstAttribute == .bottom || constraint.secondAttribute == .bottom
-			if touchesBottom && ((firstIsContainer && secondIsView) || (secondIsContainer && firstIsView)) {
-				constraint.isActive = false
-			}
-		}
-		containerView.bottomAnchor.constraint(equalTo: speechTransportBar.topAnchor).isActive = true
 	}
 
 	// MARK: - API
@@ -128,6 +116,27 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 		case .search:
 			detailStateForSearch = state
 		}
+		refreshSpeechIfNeededForState(state)
+	}
+
+	private func refreshSpeechIfNeededForState(_ state: DetailState) {
+		let coordinator = SpeechCoordinator.shared
+		guard coordinator.state.isActive, let playingID = coordinator.playingArticleID else {
+			return
+		}
+		let updatedSource: (Article, String)?
+		switch state {
+		case .article(let article, _) where article.articleID == playingID:
+			updatedSource = (article, article.body ?? "")
+		case .extracted(let article, let extracted, _) where article.articleID == playingID:
+			updatedSource = (article, extracted.content ?? article.body ?? "")
+		case .summarized(let article, let summarized, _) where article.articleID == playingID:
+			updatedSource = (article, summarized.contentHTML)
+		default:
+			updatedSource = nil
+		}
+		guard let (article, sourceHTML) = updatedSource else { return }
+		coordinator.startPlayback(for: article, sourceHTML: sourceHTML)
 	}
 
 	func showDetail(for mode: TimelineSourceMode) {
@@ -240,9 +249,12 @@ extension DetailViewController: SpeechCoordinatorObserver {
 	private func updateSpeechTransportBar() {
 		let coordinator = SpeechCoordinator.shared
 		let shouldShow = coordinator.state.isActive
-		speechTransportBarHeightConstraint?.constant = shouldShow ? 108 : 0
+		let height: CGFloat = shouldShow ? 108 : 0
+		speechTransportBarHeightConstraint?.constant = height
 		speechTransportBar.isHidden = !shouldShow
 		speechTransportBar.update(state: coordinator.state, title: coordinator.playingArticleTitle)
+		// Inset the article content area so the bar doesn't overlay the last lines.
+		containerView.contentBottomInset = height
 		NSAnimationContext.runAnimationGroup { context in
 			context.duration = 0.2
 			view.layoutSubtreeIfNeeded()
