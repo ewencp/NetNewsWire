@@ -143,12 +143,18 @@ final class SpeechTransportBar: NSView {
 		titleButton.title = displayTitle ?? ""
 		switch state {
 		case .speaking(let i, let n), .paused(let i, let n):
-			progressBar.doubleValue = n > 0 ? Double(i + 1) / Double(n) : 0
+			// Show progress at the *start* of the current block. Without a
+			// sub-block fraction, mid-block position would otherwise show
+			// "completed" before any audio of the block has been spoken.
+			// Future: smooth progress within a block via willSpeakWord (see TODO).
+			progressBar.doubleValue = n > 0 ? Double(i) / Double(n) : 0
 		case .preparing:
 			// Leave progress untouched during skip/replace transitions to avoid
 			// a visible flicker to zero between didCancel and didStart.
 			break
-		case .idle, .finished, .failed:
+		case .finished:
+			progressBar.doubleValue = 1
+		case .idle, .failed:
 			progressBar.doubleValue = 0
 		}
 		switch state {
