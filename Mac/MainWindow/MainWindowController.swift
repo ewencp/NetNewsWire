@@ -14,6 +14,8 @@ import Account
 import RSCore
 import ArticleAI
 import OllamaKit
+import ArticleSpeech
+import SpeechCoordinatorKit
 
 enum TimelineSourceMode {
 	case regular, search
@@ -82,6 +84,8 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 		toolbar.displayMode = .iconOnly
 		toolbar.delegate = self
 		self.window?.toolbar = toolbar
+
+		SpeechCoordinator.shared.addObserver(self)
 
 		if let window = window {
 			let point = NSPoint(x: 128, y: 64)
@@ -470,6 +474,28 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 
 	}
 
+	@IBAction func toggleSpeech(_ sender: Any?) {
+		guard let article = oneSelectedArticle else { return }
+		let coordinator = SpeechCoordinator.shared
+		if coordinator.playingArticleID == article.articleID {
+			coordinator.togglePlayPause()
+			return
+		}
+		let sourceHTML = currentDisplayedSourceHTMLForSpeech(for: article)
+		coordinator.startPlayback(for: article, sourceHTML: sourceHTML)
+	}
+
+	private func currentDisplayedSourceHTMLForSpeech(for article: Article) -> String {
+		switch detailViewController?.currentDetailState {
+		case .extracted(_, let extracted, _):
+			return extracted.content ?? article.body ?? ""
+		case .summarized(_, let summarized, _):
+			return summarized.contentHTML
+		default:
+			return article.body ?? ""
+		}
+	}
+
 	@IBAction func toggleArticleSummarizer(_ sender: Any?) {
 		guard let article = oneSelectedArticle else {
 			return
@@ -826,6 +852,7 @@ extension MainWindowController: TimelineContainerViewControllerDelegate {
 		}
 
 		detailViewController?.setState(detailState, mode: mode)
+		updateSpeechToolbarItem()
 	}
 
 	func timelineRequestedFeedSelection(_: TimelineContainerViewController, feed: Feed) {
@@ -961,6 +988,7 @@ extension NSToolbarItem.Identifier {
 	static let markStar = NSToolbarItem.Identifier("markStar")
 	static let readerView = NSToolbarItem.Identifier("readerView")
 	static let summarize = NSToolbarItem.Identifier("summarize")
+	static let speech = NSToolbarItem.Identifier("speech")
 	static let openInBrowser = NSToolbarItem.Identifier("openInBrowser")
 	static let share = NSToolbarItem.Identifier("share")
 	static let articleThemeMenu = NSToolbarItem.Identifier("articleThemeMenu")
@@ -1059,6 +1087,18 @@ extension MainWindowController: NSToolbarDelegate {
 			toolbarItem.view = stackView
 			return toolbarItem
 
+		case .speech:
+			let toolbarItem = RSToolbarItem(itemIdentifier: .speech)
+			toolbarItem.autovalidates = true
+			let description = NSLocalizedString("Speak Article", comment: "Speak Article")
+			toolbarItem.toolTip = description
+			toolbarItem.label = description
+			let button = SpeechToolbarButton()
+			button.action = #selector(toggleSpeech(_:))
+			button.target = self
+			toolbarItem.view = button
+			return toolbarItem
+
 		case .share:
 			let title = NSLocalizedString("Share", comment: "Share")
 			return buildToolbarButton(.share, title, Assets.Images.share, "toolbarShowShareMenu:")
@@ -1107,6 +1147,7 @@ extension MainWindowController: NSToolbarDelegate {
 			.markStar,
 			.readerView,
 			.summarize,
+			.speech,
 			.openInBrowser,
 			.share,
 			.articleThemeMenu,
@@ -1130,6 +1171,7 @@ extension MainWindowController: NSToolbarDelegate {
 			.nextUnread,
 			.readerView,
 			.summarize,
+			.speech,
 			.share,
 			.openInBrowser,
 			.flexibleSpace,
@@ -1165,6 +1207,34 @@ extension MainWindowController: NSToolbarDelegate {
 			searchItem.searchField.target = nil
 			searchItem.searchField.action = nil
 			currentSearchField = nil
+		}
+	}
+}
+
+// MARK: - SpeechCoordinatorObserver
+
+extension MainWindowController: SpeechCoordinatorObserver {
+
+	public func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
+		updateSpeechToolbarItem()
+	}
+
+	private func updateSpeechToolbarItem() {
+		guard let toolbarItem = window?.toolbar?.items.first(where: { $0.itemIdentifier == .speech }),
+		      let button = toolbarItem.view as? SpeechToolbarButton else {
+			return
+		}
+		let coordinator = SpeechCoordinator.shared
+		guard let article = oneSelectedArticle, coordinator.playingArticleID == article.articleID else {
+			button.buttonState = .off
+			return
+		}
+		switch coordinator.state {
+		case .idle, .finished:  button.buttonState = .off
+		case .preparing:        button.buttonState = .preparing
+		case .speaking:         button.buttonState = .playing
+		case .paused:           button.buttonState = .paused
+		case .failed:           button.buttonState = .error
 		}
 	}
 }

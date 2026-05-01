@@ -14,6 +14,8 @@ import Account
 import Articles
 import ArticleAI
 import OllamaKit
+import ArticleSpeech
+import SpeechCoordinatorKit
 import SafariServices
 import MessageUI
 
@@ -265,6 +267,7 @@ final class WebViewController: UIViewController {
 			isShowingExtractedArticle = false
 			loadWebView()
 			articleExtractorButtonState = .off
+			refreshSpeechSourceIfPlaying()
 			return
 		}
 
@@ -273,6 +276,7 @@ final class WebViewController: UIViewController {
 				isShowingExtractedArticle = true
 				loadWebView()
 				articleExtractorButtonState = .on
+				refreshSpeechSourceIfPlaying()
 			}
 		} else {
 			startArticleExtractor()
@@ -300,6 +304,7 @@ final class WebViewController: UIViewController {
 			isShowingSummarizedArticle = false
 			articleSummarizerButtonState = .off
 			loadWebView()
+			refreshSpeechSourceIfPlaying()
 			return
 		}
 
@@ -330,6 +335,7 @@ final class WebViewController: UIViewController {
 				isShowingSummarizedArticle = true
 				articleSummarizerButtonState = .on
 				loadWebView()
+				refreshSpeechSourceIfPlaying()
 			} catch {
 				guard !Task.isCancelled else {
 					return
@@ -339,6 +345,42 @@ final class WebViewController: UIViewController {
 			}
 			summarizationTask = nil
 		}
+	}
+
+	func toggleSpeech() {
+		guard let article else { return }
+		let coordinator = SpeechCoordinator.shared
+		if coordinator.playingArticleID == article.articleID {
+			coordinator.togglePlayPause()
+			return
+		}
+		coordinator.startPlayback(for: article, sourceHTML: currentDisplayedSourceHTML())
+	}
+
+	/// Returns the HTML currently displayed in the web view (summarized,
+	/// extracted, or article body).
+	private func currentDisplayedSourceHTML() -> String {
+		if isShowingSummarizedArticle, let summarized = summarizedArticle {
+			return summarized.contentHTML
+		}
+		if isShowingExtractedArticle, let extracted = extractedArticle?.content {
+			return extracted
+		}
+		return article?.body ?? ""
+	}
+
+	/// If this article is currently being spoken, restart playback from the
+	/// freshly-displayed source (e.g., after summarize or Reader View toggles).
+	/// Preserves the paused state across the swap.
+	func refreshSpeechSourceIfPlaying() {
+		guard let article else { return }
+		let coordinator = SpeechCoordinator.shared
+		guard coordinator.playingArticleID == article.articleID, coordinator.state.isActive else {
+			return
+		}
+		let wasPaused: Bool
+		if case .paused = coordinator.state { wasPaused = true } else { wasPaused = false }
+		coordinator.startPlayback(for: article, sourceHTML: currentDisplayedSourceHTML(), keepPaused: wasPaused)
 	}
 
 	func stopArticleExtractorIfProcessing() {
@@ -390,6 +432,7 @@ extension WebViewController: ArticleExtractorDelegate {
 			isShowingExtractedArticle = true
 			loadWebView()
 			articleExtractorButtonState = .on
+			refreshSpeechSourceIfPlaying()
 		}
 	}
 

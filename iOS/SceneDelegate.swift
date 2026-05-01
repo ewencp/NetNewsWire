@@ -33,6 +33,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 		coordinator = SceneCoordinator(rootSplitViewController: rootViewController)
 		rootViewController.coordinator = coordinator
+
 		rootViewController.delegate = coordinator
 
 		coordinator.restoreWindowState(activity: session.stateRestorationActivity)

@@ -13,6 +13,8 @@ import WebKit
 import RSCore
 import Account
 import Articles
+import ArticleSpeech
+import SpeechCoordinatorKit
 
 final class ArticleViewController: UIViewController {
 
@@ -62,6 +64,17 @@ final class ArticleViewController: UIViewController {
 		return button
 	}()
 
+	private var speechToolbarButton: SpeechToolbarButton = {
+		let button = SpeechToolbarButton(type: .system)
+		button.frame = CGRect(x: 0, y: 0, width: 44.0, height: 44.0)
+		if #unavailable(iOS 26) {
+			button.tintColor = Assets.Colors.primaryAccent
+		} else {
+			button.tintColor = .secondaryLabel
+		}
+		return button
+	}()
+
 	weak var coordinator: SceneCoordinator!
 
 	private let poppableDelegate = PoppableGestureRecognizerDelegate()
@@ -80,6 +93,7 @@ final class ArticleViewController: UIViewController {
 				}
 			}
 			updateUI()
+			updateSpeechToolbarButton()
 		}
 	}
 
@@ -134,9 +148,13 @@ final class ArticleViewController: UIViewController {
 		articleSummarizerButton.addTarget(self, action: #selector(toggleArticleSummarizer(_:)), for: .touchUpInside)
 		let articleSummarizerBarButtonItem = UIBarButtonItem(customView: articleSummarizerButton)
 
+		speechToolbarButton.addTarget(self, action: #selector(toggleSpeech(_:)), for: .touchUpInside)
+		let speechBarButtonItem = UIBarButtonItem(customView: speechToolbarButton)
+
 		if #available(iOS 26, *) {
 			toolbarItems?.insert(articleExtractorBarButtonItem, at: 5)
 			toolbarItems?.insert(articleSummarizerBarButtonItem, at: 6)
+			toolbarItems?.insert(speechBarButtonItem, at: 7)
 		} else {
 			let flex = { UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil) }
 			toolbarItems = [
@@ -150,9 +168,14 @@ final class ArticleViewController: UIViewController {
 				flex(),
 				articleSummarizerBarButtonItem,
 				flex(),
+				speechBarButtonItem,
+				flex(),
 				actionBarButtonItem
 			]
 		}
+
+		SpeechCoordinator.shared.addObserver(self)
+		updateSpeechToolbarButton()
 
 		pageViewController = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal, options: [:])
 		pageViewController.delegate = self
@@ -229,6 +252,11 @@ final class ArticleViewController: UIViewController {
 			poppableDelegate.navigationController = parentNavController
 			parentNavController.interactivePopGestureRecognizer?.delegate = poppableDelegate
 		}
+		// Host the transport bar in this view so it stacks above the navigation
+		// controller's toolbar via the view's safe-area inset. Trade-off: bar is
+		// only visible while the article view is on screen; popping to timeline
+		// hides it. Future: hoist to a global mini-player container (see TODO.md).
+		SpeechTransportPresenter.shared.host(in: view)
 	}
 
 	override func viewWillDisappear(_ animated: Bool) {
@@ -340,6 +368,10 @@ final class ArticleViewController: UIViewController {
 
 	@IBAction func toggleArticleSummarizer(_ sender: Any) {
 		currentWebViewController?.toggleArticleSummarizer()
+	}
+
+	@IBAction func toggleSpeech(_ sender: Any) {
+		currentWebViewController?.toggleSpeech()
 	}
 
 	@IBAction func nextUnread(_ sender: Any) {
@@ -574,4 +606,41 @@ private extension ArticleViewController {
 		return controller
 	}
 
+}
+
+// MARK: - SpeechCoordinatorObserver
+
+extension ArticleViewController: SpeechCoordinatorObserver {
+
+	func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
+		updateSpeechToolbarButton()
+		updateSpeechSafeAreaInset()
+	}
+
+	private func updateSpeechToolbarButton() {
+		let coordinator = SpeechCoordinator.shared
+		guard let article, coordinator.playingArticleID == article.articleID else {
+			speechToolbarButton.buttonState = .off
+			return
+		}
+		switch coordinator.state {
+		case .idle, .finished:  speechToolbarButton.buttonState = .off
+		case .preparing:        speechToolbarButton.buttonState = .preparing
+		case .speaking:         speechToolbarButton.buttonState = .playing
+		case .paused:           speechToolbarButton.buttonState = .paused
+		case .failed:           speechToolbarButton.buttonState = .error
+		}
+	}
+
+	private func updateSpeechSafeAreaInset() {
+		// Inset the WKWebView's content area to leave room for the transport
+		// bar's 120pt content height above the navigation controller's toolbar.
+		// The bar itself stacks above the toolbar via SpeechTransportPresenter's
+		// anchor mechanism, so the toolbar stays visible and accessible.
+		let active = SpeechCoordinator.shared.state.isActive
+		let webInset: CGFloat = active ? 120 : 0
+		if currentWebViewController?.additionalSafeAreaInsets.bottom != webInset {
+			currentWebViewController?.additionalSafeAreaInsets.bottom = webInset
+		}
+	}
 }
