@@ -12,10 +12,13 @@ public enum SpeechDownloadInstructions {
 	)
 
 	public static let body: String = """
-	iOS / iPadOS:
+	iOS / iPadOS 26 (Tahoe) and later:
+	  Settings → Accessibility → Read and Speak → Voices → [language] → tap a voice and select Download.
+
+	iOS / iPadOS 17–18:
 	  Settings → Accessibility → Spoken Content → Voices → [language] → tap a voice and select Download.
 
-	macOS 26 (Tahoe):
+	macOS 26 (Tahoe) and later:
 	  System Settings → Accessibility → Read and Speak → System Voice → Manage Voices…
 
 	macOS 14–15 (Sonoma–Sequoia):

@@ -34,6 +34,12 @@ final class SettingsViewController: UITableViewController {
 
 	private weak var opmlAccount: Account?
 
+	/// Index of the dynamically-added "Speech" row inside the Articles section.
+	/// One past the last static row (5 on iPhone, 4 on iPad).
+	private var speechRowIndex: Int {
+		traitCollection.userInterfaceIdiom == .phone ? 5 : 4
+	}
+
 	@IBOutlet var timelineSortOrderSwitch: UISwitch!
 	@IBOutlet var groupByFeedSwitch: UISwitch!
 	@IBOutlet var refreshClearsReadArticlesSwitch: UISwitch!
@@ -147,7 +153,8 @@ final class SettingsViewController: UITableViewController {
 			}
 			return defaultNumberOfRows
 		case .articles:
-			return traitCollection.userInterfaceIdiom == .phone ? 5 : 4
+			// +1 for the Speech row appended at the end.
+			return (traitCollection.userInterfaceIdiom == .phone ? 5 : 4) + 1
 		case .troubleshooting:
 			let defaultNumberOfRows = super.tableView(tableView, numberOfRowsInSection: section)
 			if !AccountManager.shared.hasiCloudAccount {
@@ -177,6 +184,11 @@ final class SettingsViewController: UITableViewController {
 				acctCell.comboNameLabel?.text = account.nameForDisplay
 				cell = acctCell
 			}
+		case .articles where indexPath.row == speechRowIndex:
+			let speechCell = UITableViewCell(style: .default, reuseIdentifier: nil)
+			speechCell.textLabel?.text = NSLocalizedString("Speech", comment: "Speech settings row")
+			speechCell.accessoryType = .disclosureIndicator
+			cell = speechCell
 		default:
 			cell = super.tableView(tableView, cellForRowAt: indexPath)
 
@@ -227,6 +239,11 @@ final class SettingsViewController: UITableViewController {
 				break
 			}
 		case .articles:
+			if indexPath.row == speechRowIndex {
+				let speechVC = SpeechSettingsViewController()
+				self.navigationController?.pushViewController(speechVC, animated: true)
+				break
+			}
 			switch indexPath.row {
 			case 0:
 				let articleThemes = UIStoryboard.settings.instantiateController(ofType: ArticleThemesTableViewController.self)
