@@ -14,6 +14,8 @@ import Account
 import Articles
 import ArticleAI
 import OllamaKit
+import ArticleSpeech
+import SpeechCoordinatorKit
 import SafariServices
 import MessageUI
 
@@ -339,6 +341,25 @@ final class WebViewController: UIViewController {
 			}
 			summarizationTask = nil
 		}
+	}
+
+	func toggleSpeech() {
+		guard let article else { return }
+		let coordinator = SpeechCoordinator.shared
+		if coordinator.playingArticleID == article.articleID {
+			coordinator.togglePlayPause()
+			return
+		}
+		// Resolve the source HTML to mirror what's currently displayed.
+		let sourceHTML: String
+		if isShowingSummarizedArticle, let summarized = summarizedArticle {
+			sourceHTML = summarized.contentHTML
+		} else if isShowingExtractedArticle, let extracted = extractedArticle?.content {
+			sourceHTML = extracted
+		} else {
+			sourceHTML = article.body ?? ""
+		}
+		coordinator.startPlayback(for: article, sourceHTML: sourceHTML)
 	}
 
 	func stopArticleExtractorIfProcessing() {

@@ -13,6 +13,8 @@ import WebKit
 import RSCore
 import Account
 import Articles
+import ArticleSpeech
+import SpeechCoordinatorKit
 
 final class ArticleViewController: UIViewController {
 
@@ -54,6 +56,17 @@ final class ArticleViewController: UIViewController {
 		let button = ArticleSummarizerButton(type: .system)
 		button.frame = CGRect(x: 0, y: 0, width: 44.0, height: 44.0)
 		button.setImage(Assets.Images.articleSummarizerOff, for: .normal)
+		if #unavailable(iOS 26) {
+			button.tintColor = Assets.Colors.primaryAccent
+		} else {
+			button.tintColor = .secondaryLabel
+		}
+		return button
+	}()
+
+	private var speechToolbarButton: SpeechToolbarButton = {
+		let button = SpeechToolbarButton(type: .system)
+		button.frame = CGRect(x: 0, y: 0, width: 44.0, height: 44.0)
 		if #unavailable(iOS 26) {
 			button.tintColor = Assets.Colors.primaryAccent
 		} else {
@@ -134,9 +147,13 @@ final class ArticleViewController: UIViewController {
 		articleSummarizerButton.addTarget(self, action: #selector(toggleArticleSummarizer(_:)), for: .touchUpInside)
 		let articleSummarizerBarButtonItem = UIBarButtonItem(customView: articleSummarizerButton)
 
+		speechToolbarButton.addTarget(self, action: #selector(toggleSpeech(_:)), for: .touchUpInside)
+		let speechBarButtonItem = UIBarButtonItem(customView: speechToolbarButton)
+
 		if #available(iOS 26, *) {
 			toolbarItems?.insert(articleExtractorBarButtonItem, at: 5)
 			toolbarItems?.insert(articleSummarizerBarButtonItem, at: 6)
+			toolbarItems?.insert(speechBarButtonItem, at: 7)
 		} else {
 			let flex = { UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil) }
 			toolbarItems = [
@@ -150,9 +167,14 @@ final class ArticleViewController: UIViewController {
 				flex(),
 				articleSummarizerBarButtonItem,
 				flex(),
+				speechBarButtonItem,
+				flex(),
 				actionBarButtonItem
 			]
 		}
+
+		SpeechCoordinator.shared.addObserver(self)
+		updateSpeechToolbarButton()
 
 		pageViewController = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal, options: [:])
 		pageViewController.delegate = self
@@ -340,6 +362,10 @@ final class ArticleViewController: UIViewController {
 
 	@IBAction func toggleArticleSummarizer(_ sender: Any) {
 		currentWebViewController?.toggleArticleSummarizer()
+	}
+
+	@IBAction func toggleSpeech(_ sender: Any) {
+		currentWebViewController?.toggleSpeech()
 	}
 
 	@IBAction func nextUnread(_ sender: Any) {
@@ -574,4 +600,28 @@ private extension ArticleViewController {
 		return controller
 	}
 
+}
+
+// MARK: - SpeechCoordinatorObserver
+
+extension ArticleViewController: SpeechCoordinatorObserver {
+
+	func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
+		updateSpeechToolbarButton()
+	}
+
+	private func updateSpeechToolbarButton() {
+		let coordinator = SpeechCoordinator.shared
+		guard let article, coordinator.playingArticleID == article.articleID else {
+			speechToolbarButton.buttonState = .off
+			return
+		}
+		switch coordinator.state {
+		case .idle, .finished:  speechToolbarButton.buttonState = .off
+		case .preparing:        speechToolbarButton.buttonState = .preparing
+		case .speaking:         speechToolbarButton.buttonState = .playing
+		case .paused:           speechToolbarButton.buttonState = .paused
+		case .failed:           speechToolbarButton.buttonState = .error
+		}
+	}
 }
