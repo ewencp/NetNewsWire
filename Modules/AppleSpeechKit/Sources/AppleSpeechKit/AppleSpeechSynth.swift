@@ -48,30 +48,31 @@ public final class AppleSpeechSynth: SpeechSynth {
 
 	// MARK: - SpeechSynth conformance
 
-	public func play(blocks: [SpeechBlock], voice: SpeechVoice, rate: Float) {
+	public func play(blocks: [SpeechBlock], voice: SpeechVoice, rate: Float, startingAt: Int) {
 		self.rateMultiplier = rate
 		let avSpeechSynthesisVoice = resolveAVSpeechSynthesisVoice(voice)
 		let newAVSpeechUtterances = blocks.map {
 			makeAVSpeechUtterance(from: $0, avSpeechSynthesisVoice: avSpeechSynthesisVoice)
 		}
+		let safeStart = max(0, min(startingAt, max(0, newAVSpeechUtterances.count - 1)))
 
 		let isBusy = engine.isSpeaking || engine.isPaused
 
 		if !isBusy {
 			avSpeechUtterances = newAVSpeechUtterances
-			currentIndex = 0
+			currentIndex = safeStart
 			pendingAction = .none
-			guard let first = newAVSpeechUtterances.first else {
+			guard !newAVSpeechUtterances.isEmpty else {
 				state = .idle
 				return
 			}
 			state = .preparing
 			activateAudioSessionIfNeeded()
-			engine.speak(first)
+			engine.speak(newAVSpeechUtterances[safeStart])
 			return
 		}
 
-		pendingAction = .replaceWith(newAVSpeechUtterances)
+		pendingAction = .replaceWith(newAVSpeechUtterances, startingAt: safeStart)
 		engine.stopSpeaking(at: .immediate)
 	}
 
@@ -121,7 +122,7 @@ public final class AppleSpeechSynth: SpeechSynth {
 		case advance
 		case skipTo(Int)
 		case fullStop
-		case replaceWith([AVSpeechUtterance])
+		case replaceWith([AVSpeechUtterance], startingAt: Int)
 	}
 
 	// MARK: - Utterance construction
@@ -238,17 +239,18 @@ extension AppleSpeechSynth: AppleSpeechEngineDelegate {
 	/// outcome.
 	private func applyPendingActionIfNeeded(via engine: AppleSpeechEngine) -> Bool {
 		switch pendingAction {
-		case .replaceWith(let newAVSpeechUtterances):
+		case .replaceWith(let newAVSpeechUtterances, let startingAt):
 			pendingAction = .none
 			avSpeechUtterances = newAVSpeechUtterances
-			currentIndex = 0
-			guard let first = newAVSpeechUtterances.first else {
+			let safeStart = max(0, min(startingAt, max(0, newAVSpeechUtterances.count - 1)))
+			currentIndex = safeStart
+			guard !newAVSpeechUtterances.isEmpty else {
 				state = .idle
 				deactivateAudioSession()
 				return true
 			}
 			state = .preparing
-			engine.speak(first)
+			engine.speak(newAVSpeechUtterances[safeStart])
 			return true
 		case .skipTo(let idx):
 			pendingAction = .none

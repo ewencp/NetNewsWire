@@ -24,6 +24,7 @@ private struct PreferencesToolbarItemSpec {
 private struct ToolbarItemIdentifier {
 	static let General = "General"
 	static let Accounts = "Accounts"
+	static let Speech = "Speech"
 	static let Advanced = "Advanced"
 }
 
@@ -39,6 +40,9 @@ final class PreferencesWindowController: NSWindowController, NSToolbarDelegate {
 		specs += [PreferencesToolbarItemSpec(identifierRawValue: ToolbarItemIdentifier.Accounts,
 											 name: NSLocalizedString("Accounts", comment: "Preferences"),
 											 image: Assets.Images.preferencesToolbarAccounts)]
+		specs += [PreferencesToolbarItemSpec(identifierRawValue: ToolbarItemIdentifier.Speech,
+											 name: NSLocalizedString("Speech", comment: "Preferences"),
+											 image: NSImage(systemSymbolName: "speaker.wave.2", accessibilityDescription: nil))]
 		specs += [PreferencesToolbarItemSpec(identifierRawValue: ToolbarItemIdentifier.Advanced,
 											 name: NSLocalizedString("Advanced", comment: "Preferences"),
 											 image: Assets.Images.preferencesToolbarAdvanced)]
@@ -150,6 +154,13 @@ private extension PreferencesWindowController {
 	func viewController(identifier: String) -> NSViewController? {
 		if let cachedViewController = viewControllers[identifier] {
 			return cachedViewController
+		}
+
+		// Speech is built programmatically — bypasses the storyboard.
+		if identifier == ToolbarItemIdentifier.Speech {
+			let viewController = SpeechPreferencesViewController()
+			viewControllers[identifier] = viewController
+			return viewController
 		}
 
 		let storyboard = NSStoryboard(name: NSStoryboard.Name("Preferences"), bundle: nil)

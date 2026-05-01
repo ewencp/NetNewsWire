@@ -25,6 +25,12 @@ public final class SpeechCoordinator {
 	/// `.speaking` transition triggers a re-pause.
 	private var pauseAfterStart: Bool = false
 
+	/// Cached blocks for the currently-playing article so that voice/rate
+	/// changes from Settings can re-trigger playback without re-running the
+	/// full HTML preprocessing pipeline.
+	private var cachedBlocks: [SpeechBlock] = []
+	private var cachedArticle: Article?
+
 	private init() {
 		self.synth = AppleSpeechSynth()
 		self.synth.addObserver(self)
@@ -63,9 +69,31 @@ public final class SpeechCoordinator {
 			playingArticleID = articleID
 			playingArticleTitle = title
 			pauseAfterStart = keepPaused
+			cachedBlocks = blocks
+			cachedArticle = article
 			notifyObservers()
-			synth.play(blocks: blocks, voice: voice, rate: rate)
+			synth.play(blocks: blocks, voice: voice, rate: rate, startingAt: 0)
 		}
+	}
+
+	/// Restart the active playback with the latest voice/rate from `UserDefaults`,
+	/// resuming at the current block. No-op if nothing is playing. Preserves the
+	/// paused state across the swap.
+	public func applyCurrentSettings() {
+		guard state.isActive, let article = cachedArticle, !cachedBlocks.isEmpty else {
+			return
+		}
+		let voice = currentVoice(for: article)
+		let rate = currentRate(for: article)
+		let resumeIndex: Int
+		switch state {
+		case .speaking(let i, _), .paused(let i, _): resumeIndex = i
+		default:                                      resumeIndex = 0
+		}
+		let wasPaused: Bool
+		if case .paused = state { wasPaused = true } else { wasPaused = false }
+		pauseAfterStart = wasPaused
+		synth.play(blocks: cachedBlocks, voice: voice, rate: rate, startingAt: resumeIndex)
 	}
 
 	public func togglePlayPause() {
@@ -136,6 +164,8 @@ extension SpeechCoordinator: SpeechSynthObserver {
 			playingArticleID = nil
 			playingArticleTitle = nil
 			pauseAfterStart = false
+			cachedBlocks = []
+			cachedArticle = nil
 		case .speaking:
 			if pauseAfterStart {
 				pauseAfterStart = false

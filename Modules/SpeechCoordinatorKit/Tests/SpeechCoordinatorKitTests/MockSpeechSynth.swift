@@ -21,16 +21,18 @@ final class MockSpeechSynth: SpeechSynth {
 	private(set) var lastBlocks: [SpeechBlock] = []
 	private(set) var lastVoice: SpeechVoice?
 	private(set) var lastRate: Float?
+	private(set) var lastStartingAt: Int?
 
 	private let observers = NSHashTable<AnyObject>.weakObjects()
 
 	func availableVoices() async -> [SpeechVoice] { [] }
 
-	func play(blocks: [SpeechBlock], voice: SpeechVoice, rate: Float) {
+	func play(blocks: [SpeechBlock], voice: SpeechVoice, rate: Float, startingAt: Int) {
 		playCount += 1
 		lastBlocks = blocks
 		lastVoice = voice
 		lastRate = rate
+		lastStartingAt = startingAt
 	}
 
 	func pause() { pauseCount += 1 }
