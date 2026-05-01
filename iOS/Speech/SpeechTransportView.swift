@@ -98,7 +98,9 @@ final class SpeechTransportView: UIView {
 
 			controlsStack.topAnchor.constraint(equalTo: progressView.bottomAnchor, constant: 12),
 			controlsStack.centerXAnchor.constraint(equalTo: centerXAnchor),
-			controlsStack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -10)
+			// Pin to the safe-area bottom so controls sit above the home indicator
+			// even though the bar's background extends to the absolute window bottom.
+			controlsStack.bottomAnchor.constraint(lessThanOrEqualTo: safeAreaLayoutGuide.bottomAnchor, constant: -10)
 		])
 
 		[skipBackwardButton, playPauseButton, skipForwardButton].forEach { button in

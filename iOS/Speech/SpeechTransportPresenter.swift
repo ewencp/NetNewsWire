@@ -26,13 +26,13 @@ final class SpeechTransportPresenter {
 		guard let window else { return }
 		window.addSubview(transportView)
 		transportView.translatesAutoresizingMaskIntoConstraints = false
-		transportView.isHidden = true
+		transportView.clipsToBounds = true
 		let height = transportView.heightAnchor.constraint(equalToConstant: 0)
 		heightConstraint = height
 		NSLayoutConstraint.activate([
 			transportView.leadingAnchor.constraint(equalTo: window.leadingAnchor),
 			transportView.trailingAnchor.constraint(equalTo: window.trailingAnchor),
-			transportView.bottomAnchor.constraint(equalTo: window.safeAreaLayoutGuide.bottomAnchor),
+			transportView.bottomAnchor.constraint(equalTo: window.bottomAnchor),
 			height
 		])
 	}
@@ -41,12 +41,17 @@ final class SpeechTransportPresenter {
 extension SpeechTransportPresenter: SpeechCoordinatorObserver {
 
 	func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
+		guard let window else { return }
 		let shouldShow = coordinator.state.isActive
-		heightConstraint?.constant = shouldShow ? 120 : 0
-		transportView.isHidden = !shouldShow
+		// Bring to front in case something else added a subview to the window after init.
+		window.bringSubviewToFront(transportView)
+		// Reserve space for the home-indicator inset when shown so the bar's content
+		// stays above it; otherwise collapse to zero.
+		let bottomInset = window.safeAreaInsets.bottom
+		heightConstraint?.constant = shouldShow ? (120 + bottomInset) : 0
 		transportView.update(state: coordinator.state, title: coordinator.playingArticleTitle)
-		UIView.animate(withDuration: 0.2) { [weak self] in
-			self?.window?.layoutIfNeeded()
+		UIView.animate(withDuration: 0.2) {
+			window.layoutIfNeeded()
 		}
 	}
 }

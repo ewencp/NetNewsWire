@@ -93,6 +93,7 @@ final class ArticleViewController: UIViewController {
 				}
 			}
 			updateUI()
+			updateSpeechToolbarButton()
 		}
 	}
 
