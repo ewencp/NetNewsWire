@@ -252,6 +252,11 @@ final class ArticleViewController: UIViewController {
 			poppableDelegate.navigationController = parentNavController
 			parentNavController.interactivePopGestureRecognizer?.delegate = poppableDelegate
 		}
+		// Host the transport bar in this view so it stacks above the navigation
+		// controller's toolbar via the view's safe-area inset. Trade-off: bar is
+		// only visible while the article view is on screen; popping to timeline
+		// hides it. Future: hoist to a global mini-player container (see TODO.md).
+		SpeechTransportPresenter.shared.host(in: view)
 	}
 
 	override func viewWillDisappear(_ animated: Bool) {
@@ -628,16 +633,14 @@ extension ArticleViewController: SpeechCoordinatorObserver {
 	}
 
 	private func updateSpeechSafeAreaInset() {
-		// Reserve room above the home indicator for the transport bar's content
-		// so the article toolbar and WKWebView reflow above it. The bar's
-		// home-indicator-area background is already covered by safeAreaInsets,
-		// so we only need to account for the bar's 120pt content height.
+		// Inset the WKWebView's content area to leave room for the transport
+		// bar's 120pt content height above the navigation controller's toolbar.
+		// The bar itself stacks above the toolbar via SpeechTransportPresenter's
+		// anchor mechanism, so the toolbar stays visible and accessible.
 		let active = SpeechCoordinator.shared.state.isActive
-		let inset: CGFloat = active ? 120 : 0
-		if additionalSafeAreaInsets.bottom != inset {
-			UIView.animate(withDuration: 0.2) {
-				self.additionalSafeAreaInsets.bottom = inset
-			}
+		let webInset: CGFloat = active ? 120 : 0
+		if currentWebViewController?.additionalSafeAreaInsets.bottom != webInset {
+			currentWebViewController?.additionalSafeAreaInsets.bottom = webInset
 		}
 	}
 }

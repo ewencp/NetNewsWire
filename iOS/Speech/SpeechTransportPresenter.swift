@@ -7,51 +7,59 @@ import UIKit
 import ArticleSpeech
 import SpeechCoordinatorKit
 
-/// Owns the window-level transport view so it persists across navigation
-/// pushes/pops. Visibility is driven by `SpeechCoordinator` state changes.
+/// Hosts the transport bar inside a host view, anchored to the host's safe-area
+/// bottom. When hosted inside `ArticleViewController.view` the safe area
+/// excludes the navigation controller's toolbar, so the bar sits above the
+/// toolbar without overlapping.
 @MainActor
 final class SpeechTransportPresenter {
 
-	private weak var window: UIWindow?
+	static let shared = SpeechTransportPresenter()
+
 	private let transportView = SpeechTransportView()
+	private weak var hostView: UIView?
 	private var heightConstraint: NSLayoutConstraint?
 
-	init(window: UIWindow) {
-		self.window = window
-		install()
+	private init() {
 		SpeechCoordinator.shared.addObserver(self)
 	}
 
-	private func install() {
-		guard let window else { return }
-		window.addSubview(transportView)
+	/// Installs the transport view as a subview of the given host view,
+	/// anchored to its safe-area bottom. Called by the active VC
+	/// (ArticleViewController) in viewDidAppear.
+	func host(in view: UIView?) {
+		guard let view, hostView !== view else { return }
+		transportView.removeFromSuperview()
+		hostView = view
+
+		view.addSubview(transportView)
 		transportView.translatesAutoresizingMaskIntoConstraints = false
 		transportView.clipsToBounds = true
 		let height = transportView.heightAnchor.constraint(equalToConstant: 0)
 		heightConstraint = height
 		NSLayoutConstraint.activate([
-			transportView.leadingAnchor.constraint(equalTo: window.leadingAnchor),
-			transportView.trailingAnchor.constraint(equalTo: window.trailingAnchor),
-			transportView.bottomAnchor.constraint(equalTo: window.bottomAnchor),
+			transportView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+			transportView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+			transportView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
 			height
 		])
+		applyHeight()
+	}
+
+	private func applyHeight() {
+		let active = SpeechCoordinator.shared.state.isActive
+		heightConstraint?.constant = active ? 120 : 0
+		hostView?.bringSubviewToFront(transportView)
 	}
 }
 
 extension SpeechTransportPresenter: SpeechCoordinatorObserver {
 
 	func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
-		guard let window else { return }
-		let shouldShow = coordinator.state.isActive
-		// Bring to front in case something else added a subview to the window after init.
-		window.bringSubviewToFront(transportView)
-		// Reserve space for the home-indicator inset when shown so the bar's content
-		// stays above it; otherwise collapse to zero.
-		let bottomInset = window.safeAreaInsets.bottom
-		heightConstraint?.constant = shouldShow ? (120 + bottomInset) : 0
 		transportView.update(state: coordinator.state, title: coordinator.playingArticleTitle)
-		UIView.animate(withDuration: 0.2) {
-			window.layoutIfNeeded()
+		applyHeight()
+		UIView.animate(withDuration: 0.2) { [weak self] in
+			self?.hostView?.layoutIfNeeded()
 		}
 	}
 }

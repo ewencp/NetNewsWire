@@ -14,7 +14,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 	var window: UIWindow?
 	var coordinator: SceneCoordinator!
-	private var speechTransportPresenter: SpeechTransportPresenter?
 
 	// UIWindowScene delegate
 
@@ -35,9 +34,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		coordinator = SceneCoordinator(rootSplitViewController: rootViewController)
 		rootViewController.coordinator = coordinator
 
-		if let window {
-			speechTransportPresenter = SpeechTransportPresenter(window: window)
-		}
 		rootViewController.delegate = coordinator
 
 		coordinator.restoreWindowState(activity: session.stateRestorationActivity)
