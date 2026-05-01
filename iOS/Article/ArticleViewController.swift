@@ -609,6 +609,7 @@ extension ArticleViewController: SpeechCoordinatorObserver {
 
 	func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
 		updateSpeechToolbarButton()
+		updateSpeechSafeAreaInset()
 	}
 
 	private func updateSpeechToolbarButton() {
@@ -623,6 +624,20 @@ extension ArticleViewController: SpeechCoordinatorObserver {
 		case .speaking:         speechToolbarButton.buttonState = .playing
 		case .paused:           speechToolbarButton.buttonState = .paused
 		case .failed:           speechToolbarButton.buttonState = .error
+		}
+	}
+
+	private func updateSpeechSafeAreaInset() {
+		// Reserve room above the home indicator for the transport bar's content
+		// so the article toolbar and WKWebView reflow above it. The bar's
+		// home-indicator-area background is already covered by safeAreaInsets,
+		// so we only need to account for the bar's 120pt content height.
+		let active = SpeechCoordinator.shared.state.isActive
+		let inset: CGFloat = active ? 120 : 0
+		if additionalSafeAreaInsets.bottom != inset {
+			UIView.animate(withDuration: 0.2) {
+				self.additionalSafeAreaInsets.bottom = inset
+			}
 		}
 	}
 }
