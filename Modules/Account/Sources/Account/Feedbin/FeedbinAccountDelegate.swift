@@ -6,6 +6,7 @@
 //  Copyright © 2019 Ranchero Software, LLC. All rights reserved.
 //
 
+import Foundation
 import Articles
 import ErrorLog
 import FeedFinder
@@ -242,6 +243,7 @@ public enum FeedbinAccountDelegateError: String, Error, Sendable {
 				if let subscriptionID = feed.externalID {
 					do {
 						try await caller.deleteSubscription(subscriptionID: subscriptionID)
+						account.clearFeedSettings(feed)
 					} catch {
 						Self.logger.error("Feedbin: Remove feed error: \(error.localizedDescription)")
 						postSyncError(error, account: account, operation: "Removing feed")
@@ -956,6 +958,7 @@ private extension FeedbinAccountDelegate {
 			postSyncError(error, account: account, operation: "Removing feed")
 		}
 
+		account.clearFeedSettings(feed)
 		account.removeAllInstancesOfFeedFromTreeAtAllLevels(feed)
 	}
 

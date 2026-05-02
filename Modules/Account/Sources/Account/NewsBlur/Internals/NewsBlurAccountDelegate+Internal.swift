@@ -7,6 +7,7 @@
 //  Copyright (c) 2020 Ranchero Software, LLC. All rights reserved.
 //
 
+import Foundation
 import Articles
 import RSCore
 import RSDatabase
@@ -409,6 +410,7 @@ import os
 		do {
 			try await caller.deleteFeed(feedID: feedID, folder: folderName)
 
+			account.clearFeedSettings(feed)
 			account.removeAllInstancesOfFeedFromTreeAtAllLevels(feed)
 		} catch {
 			throw AccountError.wrapped(error, account)

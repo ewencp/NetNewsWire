@@ -1,5 +1,5 @@
 import Foundation
-import RSMarkdown
+import Tidemark
 
 /// Converts LLM markdown output to rendered HTML, rehydrating image references.
 public enum SummaryPostprocessor {
@@ -19,9 +19,7 @@ public enum SummaryPostprocessor {
 		var text = rehydrateImages(in: markdown, references: imageReferences)
 
 		// 2. Convert markdown to HTML
-		if let converted = RSMarkdown.markdownToHTML(text) {
-			text = converted
-		}
+		text = Tidemark.markdownToHTML(text)
 
 		return text
 	}

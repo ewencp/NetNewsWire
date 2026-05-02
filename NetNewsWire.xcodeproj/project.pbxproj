@@ -68,6 +68,7 @@
 		8424B3192DB73D4C0053AA11 /* RSParser in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 8424B3172DB73D4C0053AA11 /* RSParser */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		8424B31B2DB73D530053AA11 /* RSParser in Frameworks */ = {isa = PBXBuildFile; productRef = 8424B31A2DB73D530053AA11 /* RSParser */; };
 		8424B31C2DB73D530053AA11 /* RSParser in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 8424B31A2DB73D530053AA11 /* RSParser */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		8424B3212DB73D4C0053AA11 /* RSParser in Frameworks */ = {isa = PBXBuildFile; productRef = 8424B3202DB73D4C0053AA11 /* RSParser */; };
 		843E2F172CF2B8A700ED170F /* RSWeb in Frameworks */ = {isa = PBXBuildFile; productRef = 843E2F162CF2B8A700ED170F /* RSWeb */; };
 		843E2F182CF2B8A700ED170F /* RSWeb in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 843E2F162CF2B8A700ED170F /* RSWeb */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		843E2F1A2CF2B8C500ED170F /* RSWeb in Frameworks */ = {isa = PBXBuildFile; productRef = 843E2F192CF2B8C500ED170F /* RSWeb */; };
@@ -377,7 +378,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"NetNewsWire-iOSTests/Info.plist",
-				NetNewsWireTests/Info.plist,
 			);
 			target = 849C64701ED37A5D003D8FC0 /* NetNewsWireTests */;
 		};
@@ -649,6 +649,7 @@
 			files = (
 				848E84D22DB7495C0023F3BA /* RSCore in Frameworks */,
 				4679674625E599C100844E8D /* Articles in Frameworks */,
+				8424B3212DB73D4C0053AA11 /* RSParser in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -964,6 +965,7 @@
 			packageProductDependencies = (
 				4679674525E599C100844E8D /* Articles */,
 				848E84D12DB7495C0023F3BA /* RSCore */,
+				8424B3202DB73D4C0053AA11 /* RSParser */,
 			);
 			productName = NetNewsWireTests;
 			productReference = 849C64711ED37A5D003D8FC0 /* NetNewsWireTests.xctest */;
@@ -1838,6 +1840,10 @@
 			productName = RSParser;
 		};
 		8424B31A2DB73D530053AA11 /* RSParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RSParser;
+		};
+		8424B3202DB73D4C0053AA11 /* RSParser */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RSParser;
 		};

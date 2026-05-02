@@ -43,7 +43,7 @@ final class WebViewController: UIViewController {
 
 	private lazy var contextMenuInteraction = UIContextMenuInteraction(delegate: self)
 	private var isFullScreenAvailable: Bool {
-		return AppDefaults.shared.articleFullscreenAvailable && traitCollection.userInterfaceIdiom == .phone && coordinator.isRootSplitCollapsed
+		return AppDefaults.shared.articleFullscreenAvailable && traitCollection.userInterfaceIdiom == .phone
 	}
 	private lazy var articleIconSchemeHandler = ArticleIconSchemeHandler(coordinator: coordinator)
 	private lazy var transition = ImageTransition(controller: self)
@@ -107,6 +107,13 @@ final class WebViewController: UIViewController {
 		configureBottomShowBarsView()
 
 		loadWebView()
+	}
+
+	override func viewSafeAreaInsetsDidChange() {
+		super.viewSafeAreaInsetsDidChange()
+		if isFullScreenAvailable && AppDefaults.shared.logicalArticleFullscreenEnabled {
+			updateBottomSafeAreaForFullScreen()
+		}
 	}
 
 	// MARK: Notifications
@@ -236,6 +243,7 @@ final class WebViewController: UIViewController {
 		bottomShowBarsViewConstraint?.constant = 0
 		navigationController?.setNavigationBarHidden(false, animated: true)
 		navigationController?.setToolbarHidden(false, animated: true)
+		additionalSafeAreaInsets.bottom = 0
 		configureContextMenuInteraction()
 	}
 
@@ -247,6 +255,7 @@ final class WebViewController: UIViewController {
 			bottomShowBarsViewConstraint?.constant = 44.0
 			navigationController?.setNavigationBarHidden(true, animated: true)
 			navigationController?.setToolbarHidden(true, animated: true)
+			updateBottomSafeAreaForFullScreen()
 			configureContextMenuInteraction()
 		}
 	}
@@ -848,7 +857,7 @@ private extension WebViewController {
 
 	func configureBottomShowBarsView() {
 		bottomShowBarsView = UIView()
-		topShowBarsView.backgroundColor = .clear
+		bottomShowBarsView.backgroundColor = .clear
 		bottomShowBarsView.translatesAutoresizingMaskIntoConstraints = false
 		view.addSubview(bottomShowBarsView)
 		if AppDefaults.shared.logicalArticleFullscreenEnabled {
@@ -863,6 +872,11 @@ private extension WebViewController {
 			bottomShowBarsView.heightAnchor.constraint(equalToConstant: 44.0)
 		])
 		bottomShowBarsView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(showBars(_:))))
+	}
+
+	func updateBottomSafeAreaForFullScreen() {
+		let rawBottom = view.safeAreaInsets.bottom - additionalSafeAreaInsets.bottom
+		additionalSafeAreaInsets.bottom = -rawBottom
 	}
 
 	func configureContextMenuInteraction() {

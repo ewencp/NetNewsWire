@@ -11,12 +11,12 @@ let package = Package(
 			targets: ["ArticleAI"])
 	],
 	dependencies: [
-		.package(path: "../RSMarkdown")
+		.package(url: "https://github.com/brentsimmons/Tidemark", from: "1.0.0")
 	],
 	targets: [
 		.target(
 			name: "ArticleAI",
-			dependencies: ["RSMarkdown"],
+			dependencies: ["Tidemark"],
 			swiftSettings: [
 				.enableUpcomingFeature("NonisolatedNonsendingByDefault"),
 				.enableUpcomingFeature("InferIsolatedConformances")

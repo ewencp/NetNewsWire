@@ -68,6 +68,10 @@ import ErrorLog
 		}
 	}
 
+	@IBAction override func performTextFinderAction(_ sender: Any?) {
+		textView.performTextFinderAction(sender)
+	}
+
 	func saveState() {
 		Self.shouldOpenAtStartup = window?.isVisible ?? false
 	}
@@ -143,6 +147,8 @@ private extension ErrorLogWindowController {
 		let embeddedTextView = scrollView.documentView as! NSTextView
 		embeddedTextView.isEditable = false
 		embeddedTextView.isSelectable = true
+		embeddedTextView.usesFindBar = true
+		embeddedTextView.isIncrementalSearchingEnabled = true
 		embeddedTextView.textContainerInset = NSSize(width: Self.textContainerInset, height: Self.textContainerInset)
 		embeddedTextView.font = NSFont.monospacedSystemFont(ofSize: Self.fontSize, weight: .regular)
 		self.textView = embeddedTextView

@@ -1,9 +1,70 @@
 # iOS Release Notes
 
+### 7.0.5 build 7053 27 Apr 2026 — branch: main tag: iOS-7.0.5-7053
+
+Added notifications settings feature — long-press on an account in the Feeds list, choose Notifications, then toggle notifications per feed
+Fixed a bug where FreshRSS feed settings could get messed up. (This should heal itself, though not necessarily instantly)
+Made timeline fetches faster and use less memory for articles
+Added additional database cleanup code at startup — now gets rid of unused author data
+Reverted a webview-cache-emptying change (in 7051) that triggered an intermittent bug where the article view could be blank
+
+### 7.0.5 build 7052 24 Apr 2026 — branch: main tag: iOS-7.0.5-7052
+
+Fixed a bug that could cause the timeline to always be empty (on iOS) even though there are unread counts in the sidebar
+Made the date parser a little faster (which makes the feed parsers a little faster)
+
+### 7.0.5 build 7051 23 Apr 2026 — branch: main tag: iOS-7.0.5-7051
+
+Started using feed images as specified in the feed. We used to not do this because these weren’t likely to be square, and the app wants square images. It appears these days that those images do tend to be square. Note: due to caching, this change will happen gradually, over several days and weeks
+Fixed bug generating feed image thumbnail when image is indexed-color 4-bit palette .ico (Club iGen icon, for instance)
+Made images in the timeline always use aspect-fit
+Improved table rendering in Biblioteca theme
+Added some images caches to empty on going to background — should hopefully mean fewer memory-pressure terminations
+Started removing some webviews on going to background — also should hopefully mean fewer memory-pressure terminations
+Replaced unsafe C-based Markdown renderer/parser with safer Swift-based parser/renderer
+Replaced unsafe C-based date parser with safer Swift-based parser (which is also an order of magnitude faster)
+Started handling dates like 2020/1/10 in the date parser (even though those dates are invalid, they appear in the wild)
+Replaced unsafe C and Objective-C XML and HTML parsers (RSS, Atom, OPML, page metadata, page links) with safer Swift-based parsers (which are also faster)
+Removed dependency on libxml2
+Replaced unsafe C code to strip HTML with safer Swift code (which is faster)
+Replaced Objective-C code to decode entities with faster Swift code
+Made various other string manipulation functions faster that are used in generating timeline cells (scrolling performance enhancement)
+Turned off autocorrection for several username fields in various account settings
+Fixed a bug in the sidebar where the wrong background colors could appear at top and bottom of the screen
+Fixed a fullscreen article view bug on Pro Max iPhones
+
+### 7.0.5 build 7050 13 Apr 2026 - branch: main tag: iOS-7.0.5-7050
+
+Fixed bug with fullscreen articles not expanding to cover the bottom toolbar
+Expanded the hit detection area for the reader view button
+Fixed bug with layout of the Sync Content of Unread Articles setting in iCloud account settings
+Added work-around for feeds with non-valid two-digit years in pubDate — they would be parsed as (for instance) the year 26 instead of 2026, and now they’re parsed as 2026
+Added Biblioteca, Tiqoe Dark, and Verdana Revival themes
+
 ### 7.0.4 build 7047 2 Apr 2026 - branch: main tag: iOS-7.0.4-7047
+
+This was originally a TestFlight release. It was submitted to the App Store as the 7.0.4 release version on 3 April 2026.
+
+Changes in this build:
 
 Made the in-progress mode of the reader view more obvious by using a spinning progress indicator in place of its toolbar icon (while in progress)
 Spaced out the article view toolbar items evenly on iOS 17/18 (still grouped on iOS 26)
+
+Changes since 7.0.3:
+
+Made the app run on iOS 17 and iOS 18
+Added iCloud setting — turn on/off syncing content of unread articles (the setting itself syncs)
+Added iCloud sync feature — Window > iCloud Storage Stats. Allows you to view stats and clean up storage. More details here: <https://netnewswire.com/help/optimize-icloud.html>
+Made iCloud start doing weekly cleanups in the background, which will help with syncing performance and with lowering iCloud storage use
+Made iCloud better at incremental syncing, so it doesn’t have to start over if it gets interrupted
+Added special case for YouTube — don’t put a feed in timeout after a 4xx response. Keep trying. (YouTube feeds have been returning intermittent 4xx responses lately)
+Made a change to how images are handled that cuts down on memory and disk use
+Improved error messages and error location reporting in the Error Log
+Fixed a cause of runaway JavaScript
+Made the in-progress mode of the reader view more obvious by using a spinning progress indicator in place of its toolbar icon (when it’s in progress)
+Made filter button status display consistent between sidebar and timeline
+Fixed bug where settings screen had a cancel button instead of a done button
+Made timeline titles avoid hyphenation (almost entirely)
 
 ### 7.0.4 build 7046 1 Apr 2026 - branch: main tag: iOS-7.0.4-7046
 
@@ -142,7 +203,7 @@ Fixed — for real this time! — the last and final cause of the restored-to a
 ### 7.0 TestFlight build 7022 2 Feb 2026 - branch: main tag: iOS-7.0-7022
 
 Fixed — again, this time for good, we think! — bugs on Pro Max devices with rotation and timeline selection
-Removed latency from the deselection animation on navigating back to the timeline 
+Removed latency from the deselection animation on navigating back to the timeline
 
 ### 7.0 TestFlight build 7021 1 Feb 2026 - branch: main tag: iOS-7.0-7021
 
@@ -162,7 +223,7 @@ Made some small performance enhancements for the timeline — coalescing more u
 Fixed bug where the timeline unread and star indicators didn't update on status changes
 Made the article view button the same color as the other buttons (no longer blue)
 Fixed bug on the feeds view where the separator would start at the left edge of the icon instead of the left edge of the text
-Fixed bug in Settings > Timeline Layout where cells would briefly appear to overlay when changing settings 
+Fixed bug in Settings > Timeline Layout where cells would briefly appear to overlay when changing settings
 Fixed bug in timeline where you couldn’t swipe to star/unstar without tapping the button
 
 ### 7.0 TestFlight build 7018 26 Jan 2026 - branch: main tag: iOS-7.0-7018
@@ -213,7 +274,7 @@ Made performance better during refresh/sync by coalescing updates to the feeds l
 Changed the separators on the timeline to not go under the unread/star indicator area
 Fixed a timeline cell bug where text would be the wrong color when fully swiped
 Fixed a timeline cell bug that could cause incorrect text truncation
-Fixed a timeline bug where the selected cell could flash as the feeds list is downloading icons 
+Fixed a timeline bug where the selected cell could flash as the feeds list is downloading icons
 Fixed a couple spots in user-facing text that refer to "web feed" — now they refer to "feed"
 Fixed a couple spots in user-facing text that used ... instead of a single ellipsis character …
 Fixed settings bug where the add-Feedbin-account sheet wouldn’t close or wouldn’t close as quickly as expected

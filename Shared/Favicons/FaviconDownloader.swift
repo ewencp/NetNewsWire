@@ -69,11 +69,17 @@ extension Notification.Name {
 		NotificationCenter.default.addObserver(self, selector: #selector(didLoadFavicon(_:)), name: .DidLoadFavicon, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(htmlMetadataIsAvailable(_:)), name: .htmlMetadataAvailable, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
 	}
 
 	// MARK: - API
 
 	@objc func handleLowMemory(_ notification: Notification) {
+		cache.removeAll()
+		singleFaviconDownloaderCache.removeAll()
+	}
+
+	@objc func handleAppDidGoToBackground(_ notification: Notification) {
 		cache.removeAll()
 		singleFaviconDownloaderCache.removeAll()
 	}
@@ -329,7 +335,7 @@ private extension FaviconDownloader {
 	}
 }
 
-private extension RSHTMLMetadata {
+private extension HTMLMetadata {
 
 	func usableFaviconURLs() -> [String]? {
 
@@ -340,7 +346,7 @@ private extension RSHTMLMetadata {
 
 	static let ignoredTypes = [UTType.svg]
 
-	private func shouldAllowFavicon(_ favicon: RSHTMLMetadataFavicon) -> Bool {
+	private func shouldAllowFavicon(_ favicon: HTMLMetadataFavicon) -> Bool {
 
 		// Check mime type.
 		if let mimeType = favicon.type, let utType = UTType(mimeType: mimeType) {

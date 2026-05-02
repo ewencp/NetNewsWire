@@ -43,9 +43,14 @@ extension Notification.Name {
 
 		NotificationCenter.default.addObserver(self, selector: #selector(imageDidBecomeAvailable(_:)), name: .imageDidBecomeAvailable, object: imageDownloader)
 		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
 	}
 
 	@objc func handleLowMemory(_ notification: Notification) {
+		cache.removeAll()
+	}
+
+	@objc func handleAppDidGoToBackground(_ notification: Notification) {
 		cache.removeAll()
 	}
 
@@ -55,9 +60,15 @@ extension Notification.Name {
 			return cachedImage
 		}
 
-		if let homePageURLString = feed.homePageURL, let homePageURL = URL(string: homePageURLString), homePageURL.host == "nnw.ranchero.com" || homePageURL.host == "netnewswire.blog" {
+		if let homePageURLString = feed.homePageURL, let homePageURL = URL(string: homePageURLString), let host = homePageURL.host {
+			if host == "nnw.ranchero.com" || host == "netnewswire.blog" || host.hasSuffix("netnewswire.com") {
+				return IconImage.nnwFeedIcon
+			}
+		}
+		if feed.url.hasPrefix("https://ranchero.com/downloads/netnewswire") {
 			return IconImage.nnwFeedIcon
 		}
+
 		if Self.shouldSkipDownloadingFeedIcon(feed: feed) {
 			return nil
 		}
@@ -82,7 +93,7 @@ extension Notification.Name {
 		}
 
 		@MainActor func checkFeedIconURL() {
-			if let iconURL = feed.iconURL {
+			if let iconURL = feed.iconURL, !Self.shouldIgnoreFeedIconURL(feed) {
 				icon(forURL: iconURL, feed: feed) { (image) in
 					Task { @MainActor in
 						if self.cache[feed] != nil {
@@ -136,12 +147,34 @@ private extension FeedIconDownloader {
 
 	static let specialCasesToSkip = ["macsparky.com", "xkcd.com", SpecialCase.rachelByTheBayHostName, SpecialCase.openRSSOrgHostName]
 
+	// Domains where the feed-specified icon URL should be ignored,
+	// falling back to the homepage icon lookup instead.
+	static let domainsToIgnoreFeedIconURL: [String] = ["propublica.org"]
+
+	static func shouldIgnoreFeedIconURL(_ feed: Feed) -> Bool {
+		SpecialCase.urlStringContainSpecialCase(feed.url, domainsToIgnoreFeedIconURL)
+	}
+
 	static func shouldSkipDownloadingFeedIcon(feed: Feed) -> Bool {
 		shouldSkipDownloadingFeedIcon(feed.url)
 	}
 
 	static func shouldSkipDownloadingFeedIcon(_ urlString: String) -> Bool {
 		SpecialCase.urlStringContainSpecialCase(urlString, specialCasesToSkip)
+	}
+
+	static func sanitizedIconURL(_ url: String) -> String {
+		// WordPress URLs with /wp-content/uploads/ often have query params
+		// that specify a small size (32x32). Drop the query params to get a larger image.
+		guard url.contains("/wp-content/uploads/") else {
+			return url
+		}
+		guard var components = URLComponents(string: url) else {
+			return url
+		}
+		components.query = nil
+		components.fragment = nil
+		return components.string ?? url
 	}
 
 	func icon(forHomePageURL homePageURL: String, feed: Feed, _ resultBlock: @escaping @MainActor (RSImage?, String?) -> Void) {
@@ -176,6 +209,7 @@ private extension FeedIconDownloader {
 
 	func icon(forURL url: String, feed: Feed, _ imageResultBlock: @escaping ImageResultBlock) {
 
+		let url = Self.sanitizedIconURL(url)
 		waitingForFeedURLs[url] = feed
 		guard let imageData = imageDownloader.image(for: url) else {
 			imageResultBlock(nil)
