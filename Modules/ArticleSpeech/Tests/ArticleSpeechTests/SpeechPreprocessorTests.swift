@@ -44,7 +44,7 @@ struct SpeechPreprocessorTests {
 			title: nil,
 			language: nil
 		)
-		#expect(result.segments == [.paragraph("Hello & world.")])
+		#expect(result.segments == [.paragraph("Hello\u{00A0}&\u{00A0}world.")])
 	}
 
 	@Test func numericEntitiesAreDecoded() {
@@ -55,6 +55,16 @@ struct SpeechPreprocessorTests {
 			language: nil
 		)
 		#expect(result.segments == [.paragraph("Café — bistro.")])
+	}
+
+	@Test func curlyQuoteEntitiesAreDecoded() {
+		let result = SpeechPreprocessor.preprocess(
+			html: "<p>He said &ldquo;hello&rdquo; and &lsquo;world&rsquo;.</p>",
+			articleID: "a1",
+			title: nil,
+			language: nil
+		)
+		#expect(result.segments == [.paragraph("He said \u{201C}hello\u{201D} and \u{2018}world\u{2019}.")])
 	}
 
 	@Test func headingsCarryLevel() {

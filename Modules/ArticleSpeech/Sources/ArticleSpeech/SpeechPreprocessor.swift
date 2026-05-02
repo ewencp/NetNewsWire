@@ -1,4 +1,5 @@
 import Foundation
+import RSParser
 
 public enum SpeechPreprocessor {
 
@@ -265,7 +266,7 @@ public enum SpeechPreprocessor {
 			pattern: "<figcaption[^>]*>([\\s\\S]*?)</figcaption>"
 		)
 		let caption = captionHTML.map {
-			decodeHTMLEntities(stripInlineTags($0)).trimmingCharacters(in: .whitespacesAndNewlines)
+			stripInlineTags($0).decodingHTMLEntities().trimmingCharacters(in: .whitespacesAndNewlines)
 		}
 		return .figure(SpeechContent.ImageDescriptor(src: src, alt: alt, caption: caption))
 	}
@@ -276,7 +277,7 @@ public enum SpeechPreprocessor {
 			pattern: "class=[\"'][^\"']*language-([a-zA-Z0-9_+\\-]+)[^\"']*[\"']"
 		)
 		let stripped = stripInlineTags(inner)
-		let content = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		let content = stripped.decodingHTMLEntities().trimmingCharacters(in: .whitespacesAndNewlines)
 		return .codeBlock(language: language, content: content)
 	}
 
@@ -315,19 +316,19 @@ public enum SpeechPreprocessor {
 
 	private static func paragraphSegment(from inner: String) -> SpeechContent.Segment? {
 		let stripped = stripInlineTags(inner)
-		let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		let decoded = stripped.decodingHTMLEntities().trimmingCharacters(in: .whitespacesAndNewlines)
 		return decoded.isEmpty ? nil : .paragraph(decoded)
 	}
 
 	private static func blockQuoteSegment(from inner: String) -> SpeechContent.Segment? {
 		let stripped = stripInlineTags(inner)
-		let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		let decoded = stripped.decodingHTMLEntities().trimmingCharacters(in: .whitespacesAndNewlines)
 		return decoded.isEmpty ? nil : .blockQuote(decoded)
 	}
 
 	private static func headingSegment(from inner: String, level: Int) -> SpeechContent.Segment? {
 		let stripped = stripInlineTags(inner)
-		let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+		let decoded = stripped.decodingHTMLEntities().trimmingCharacters(in: .whitespacesAndNewlines)
 		return decoded.isEmpty ? nil : .heading(level: level, decoded)
 	}
 
@@ -437,7 +438,7 @@ public enum SpeechPreprocessor {
 				textPortion = inner
 			}
 			let stripped = stripInlineTags(textPortion)
-			let decoded = decodeHTMLEntities(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
+			let decoded = stripped.decodingHTMLEntities().trimmingCharacters(in: .whitespacesAndNewlines)
 			let ordering: SpeechContent.ListOrdering = isOrdered ? .ordered(index: index) : .unordered
 			if !decoded.isEmpty {
 				segments.append(.listItem(depth: depth, ordering: ordering, decoded))
@@ -472,41 +473,4 @@ public enum SpeechPreprocessor {
 		)
 	}
 
-	internal static func decodeHTMLEntities(_ text: String) -> String {
-		guard text.contains("&") else { return text }
-
-		var result = text
-		let entities: [(String, String)] = [
-			("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
-			("&quot;", "\""), ("&apos;", "'"), ("&#39;", "'"),
-			("&mdash;", "\u{2014}"), ("&ndash;", "\u{2013}"),
-			("&nbsp;", " "), ("&hellip;", "\u{2026}"),
-			("&laquo;", "\u{00AB}"), ("&raquo;", "\u{00BB}"),
-			("&bull;", "\u{2022}"), ("&middot;", "\u{00B7}"),
-			("&copy;", "\u{00A9}"), ("&reg;", "\u{00AE}"),
-			("&trade;", "\u{2122}"),
-		]
-		for (entity, char) in entities {
-			result = result.replacingOccurrences(of: entity, with: char)
-		}
-
-		if let numericRegex = try? NSRegularExpression(pattern: "&#(x?)([0-9a-fA-F]+);") {
-			let matches = numericRegex.matches(in: result, range: NSRange(result.startIndex..., in: result))
-			for match in matches.reversed() {
-				guard let fullRange = Range(match.range, in: result),
-				      let hexRange = Range(match.range(at: 1), in: result),
-				      let valueRange = Range(match.range(at: 2), in: result) else {
-					continue
-				}
-				let isHex = !result[hexRange].isEmpty
-				let valueStr = String(result[valueRange])
-				let codePoint: UInt32? = isHex ? UInt32(valueStr, radix: 16) : UInt32(valueStr, radix: 10)
-				if let cp = codePoint, let scalar = Unicode.Scalar(cp) {
-					result = result.replacingCharacters(in: fullRange, with: String(scalar))
-				}
-			}
-		}
-
-		return result
-	}
 }
