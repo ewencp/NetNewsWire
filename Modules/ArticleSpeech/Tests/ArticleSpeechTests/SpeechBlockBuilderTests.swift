@@ -15,12 +15,51 @@ struct SpeechBlockBuilderTests {
 
 	@Test func headingPreservesLevelInBlockKind() async {
 		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([.heading(level: 2, "Topic")]))
-		#expect(blocks == [SpeechBlock(text: "Topic.", kind: .heading(level: 2))])
+		#expect(blocks == [SpeechBlock(text: "Section 1: Topic.", kind: .heading(level: 2))])
 	}
 
 	@Test func headingAlreadyEndingWithPeriodIsNotDoubled() async {
 		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([.heading(level: 1, "End.")]))
-		#expect(blocks == [SpeechBlock(text: "End.", kind: .heading(level: 1))])
+		#expect(blocks == [SpeechBlock(text: "Section 1: End.", kind: .heading(level: 1))])
+	}
+
+	@Test func headingsAtMultipleLevelsCarryNestedSectionNumber() async {
+		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([
+			.heading(level: 2, "First Top"),
+			.heading(level: 3, "First Sub"),
+			.heading(level: 2, "Second Top"),
+			.heading(level: 3, "Second Sub A"),
+			.heading(level: 3, "Second Sub B"),
+		]))
+		#expect(blocks == [
+			SpeechBlock(text: "Section 1: First Top.", kind: .heading(level: 2)),
+			SpeechBlock(text: "Section 1.1: First Sub.", kind: .heading(level: 3)),
+			SpeechBlock(text: "Section 2: Second Top.", kind: .heading(level: 2)),
+			SpeechBlock(text: "Section 2.1: Second Sub A.", kind: .heading(level: 3)),
+			SpeechBlock(text: "Section 2.2: Second Sub B.", kind: .heading(level: 3)),
+		])
+	}
+
+	@Test func skippedHeadingLevelsFilterZeros() async {
+		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([
+			.heading(level: 2, "Top"),
+			.heading(level: 4, "Deep"),
+		]))
+		#expect(blocks == [
+			SpeechBlock(text: "Section 1: Top.", kind: .heading(level: 2)),
+			SpeechBlock(text: "Section 1.1: Deep.", kind: .heading(level: 4)),
+		])
+	}
+
+	@Test func headingAtH7OrHigherIsNotNumbered() async {
+		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([
+			.heading(level: 7, "Out of range"),
+			.heading(level: 0, "Also out"),
+		]))
+		#expect(blocks == [
+			SpeechBlock(text: "Out of range.", kind: .heading(level: 7)),
+			SpeechBlock(text: "Also out.", kind: .heading(level: 0)),
+		])
 	}
 
 	@Test func blockQuoteIsPrefixedWithQuote() async {
@@ -33,6 +72,47 @@ struct SpeechBlockBuilderTests {
 			.listItem(depth: 0, ordering: .unordered, "First")
 		]))
 		#expect(blocks == [SpeechBlock(text: "First", kind: .listItem(depth: 0, ordering: .unordered))])
+	}
+
+	@Test func orderedListItemsHaveNumericPrefix() async {
+		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([
+			.listItem(depth: 0, ordering: .ordered(index: 1), "First"),
+			.listItem(depth: 0, ordering: .ordered(index: 2), "Second"),
+			.listItem(depth: 0, ordering: .ordered(index: 3), "Third"),
+		]))
+		#expect(blocks == [
+			SpeechBlock(text: "1. First", kind: .listItem(depth: 0, ordering: .ordered(index: 1))),
+			SpeechBlock(text: "2. Second", kind: .listItem(depth: 0, ordering: .ordered(index: 2))),
+			SpeechBlock(text: "3. Third", kind: .listItem(depth: 0, ordering: .ordered(index: 3))),
+		])
+	}
+
+	@Test func mixedOrderedAndUnorderedListItems() async {
+		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([
+			.listItem(depth: 0, ordering: .ordered(index: 1), "Step 1"),
+			.listItem(depth: 0, ordering: .unordered, "Note"),
+			.listItem(depth: 0, ordering: .ordered(index: 2), "Step 2"),
+		]))
+		#expect(blocks == [
+			SpeechBlock(text: "1. Step 1", kind: .listItem(depth: 0, ordering: .ordered(index: 1))),
+			SpeechBlock(text: "Note", kind: .listItem(depth: 0, ordering: .unordered)),
+			SpeechBlock(text: "2. Step 2", kind: .listItem(depth: 0, ordering: .ordered(index: 2))),
+		])
+	}
+
+	@Test func nestedOrderedListItemsUseOwnIndex() async {
+		let blocks = await SpeechBlockBuilder.makeBlocks(from: makeContent([
+			.listItem(depth: 0, ordering: .ordered(index: 1), "Outer 1"),
+			.listItem(depth: 1, ordering: .ordered(index: 1), "Inner A"),
+			.listItem(depth: 1, ordering: .ordered(index: 2), "Inner B"),
+			.listItem(depth: 0, ordering: .ordered(index: 2), "Outer 2"),
+		]))
+		#expect(blocks == [
+			SpeechBlock(text: "1. Outer 1", kind: .listItem(depth: 0, ordering: .ordered(index: 1))),
+			SpeechBlock(text: "1. Inner A", kind: .listItem(depth: 1, ordering: .ordered(index: 1))),
+			SpeechBlock(text: "2. Inner B", kind: .listItem(depth: 1, ordering: .ordered(index: 2))),
+			SpeechBlock(text: "2. Outer 2", kind: .listItem(depth: 0, ordering: .ordered(index: 2))),
+		])
 	}
 
 	@Test func imageWithAltUsesAltText() async {
