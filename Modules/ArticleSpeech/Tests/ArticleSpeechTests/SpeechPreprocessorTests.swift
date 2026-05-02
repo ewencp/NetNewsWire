@@ -266,4 +266,75 @@ struct SpeechPreprocessorTests {
 			.paragraph("After."),
 		])
 	}
+
+	// MARK: - Tidemark v1.0 / HTML5-permissive output
+	//
+	// Tidemark's CommonMark renderer (used by SummaryPostprocessor) emits
+	// opening <p> and <li> tags without matching close tags; web views infer
+	// the closes at the next block-level element. The preprocessor must
+	// extract the same segments from this style of input as from the strict
+	// XHTML-style input the rest of the codebase produces.
+
+	@Test func unclosedParagraphsSeparatedByBlankLines() {
+		let html = "<p>First.\n\n<p>Second.\n\n<p>Third."
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [
+			.paragraph("First."),
+			.paragraph("Second."),
+			.paragraph("Third."),
+		])
+	}
+
+	@Test func unclosedParagraphsMixedWithClosedHeader() {
+		let html = "<p>Intro.\n\n<h3>Heading</h3>\n\n<p>After."
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [
+			.paragraph("Intro."),
+			.heading(level: 3, "Heading"),
+			.paragraph("After."),
+		])
+	}
+
+	@Test func unclosedListItemsInsideClosedList() {
+		let html = "<ul>\n<li><p>Apple.\n<li><p>Banana.\n</ul>"
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [
+			.listItem(depth: 0, ordering: .unordered, "Apple."),
+			.listItem(depth: 0, ordering: .unordered, "Banana."),
+		])
+	}
+
+	@Test func unclosedOrderedListItemsAreNumbered() {
+		let html = "<ol>\n<li><p>First.\n<li><p>Second.\n<li><p>Third.\n</ol>"
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [
+			.listItem(depth: 0, ordering: .ordered(index: 1), "First."),
+			.listItem(depth: 0, ordering: .ordered(index: 2), "Second."),
+			.listItem(depth: 0, ordering: .ordered(index: 3), "Third."),
+		])
+	}
+
+	@Test func tidemarkStyleParagraphsAndListInterleave() {
+		// Realistic LLM-summary output after Tidemark conversion: paragraphs
+		// of text, then a bullet list, then a closing paragraph.
+		let html = """
+		<p>The article discusses three points.
+
+		<ul>
+		<li><p>First point.
+		<li><p>Second point.
+		<li><p>Third point.
+		</ul>
+
+		<p>It concludes with a recommendation.
+		"""
+		let result = SpeechPreprocessor.preprocess(html: html, articleID: "a1", title: nil, language: nil)
+		#expect(result.segments == [
+			.paragraph("The article discusses three points."),
+			.listItem(depth: 0, ordering: .unordered, "First point."),
+			.listItem(depth: 0, ordering: .unordered, "Second point."),
+			.listItem(depth: 0, ordering: .unordered, "Third point."),
+			.paragraph("It concludes with a recommendation."),
+		])
+	}
 }

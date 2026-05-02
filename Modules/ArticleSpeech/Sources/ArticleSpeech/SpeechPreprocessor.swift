@@ -2,6 +2,21 @@ import Foundation
 
 public enum SpeechPreprocessor {
 
+	/// Tags whose content is extracted as a segment. The well-formed regex
+	/// in `findNonListContainerMatches` uses `[^>]*` (no word boundary) after
+	/// the tag name, so `pre` must come before `p` in the alternation —
+	/// otherwise ICU regex tries `p` first against `<pre>`, matches `<p`,
+	/// captures `\1` = "p", and then looks for `</p>` later in the document.
+	private static let nonListContainerTags = "pre|p|h[1-6]|blockquote|figure|table"
+
+	/// Tags whose open or close ends an unclosed paragraph. Used by the
+	/// Pass B lookahead in `findNonListContainerMatches` to terminate a
+	/// `<p>` match that has no `</p>` (Tidemark v1.0 style output). The
+	/// boundary pattern uses `\b`, so the alternation order is technically
+	/// safe, but `pre` is kept before `p` for consistency with the well-
+	/// formed pattern.
+	private static let blockBoundaryTags = "pre|p|h[1-6]|blockquote|figure|table|ul|ol|hr|li|td|tr|div|section|article|aside"
+
 	public static func preprocess(
 		html: String,
 		articleID: String,
@@ -36,10 +51,19 @@ public enum SpeechPreprocessor {
 		// Lists nest within themselves, which lazy-regex matching can't handle correctly
 		// (the first `</ul>` consumed by the outer match is the inner closing tag).
 		// We find non-list containers via regex and top-level lists via depth counting,
-		// then merge by document position.
-		let nonListMatches = findNonListContainerMatches(in: html)
-		let listMatches = findTopLevelListMatches(in: html).filter { listMatch in
-			!nonListMatches.contains { container in
+		// then merge by document position. Containers from each side are filtered to
+		// drop those that fall *inside* a container from the other side, so e.g. a
+		// <p> wrapping a <ul> emits only the <p>, and a <ul><li><p>…</p></li></ul>
+		// emits only the list (the <p>'s text is part of the list item).
+		let allNonListMatches = findNonListContainerMatches(in: html)
+		let allListMatches = findTopLevelListMatches(in: html)
+		let nonListMatches = allNonListMatches.filter { container in
+			!allListMatches.contains { listMatch in
+				NSLocationInRange(container.fullRange.location, listMatch.fullRange)
+			}
+		}
+		let listMatches = allListMatches.filter { listMatch in
+			!allNonListMatches.contains { container in
 				NSLocationInRange(listMatch.fullRange.location, container.fullRange)
 			}
 		}
@@ -109,19 +133,44 @@ public enum SpeechPreprocessor {
 	}
 
 	private static func findNonListContainerMatches(in html: String) -> [ContainerMatch] {
-		// Note: `pre` must come before `p` in the alternation. ICU regex tries
-		// alternatives left-to-right; if `p` is first, `<pre>` matches as `<p>` plus
-		// extra characters, capturing tag="p" and then looking for `</p>` later in the
-		// document, which is wrong.
-		let pattern = "<(pre|p|h[1-6]|blockquote|figure|table)[^>]*>([\\s\\S]*?)</\\1>"
-		guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+		// Pass A: well-formed containers with explicit close tags.
+		let wellFormedPattern = "<(\(nonListContainerTags))[^>]*>([\\s\\S]*?)</\\1>"
+		guard let wellFormedRegex = try? NSRegularExpression(pattern: wellFormedPattern, options: .caseInsensitive) else {
 			return []
 		}
-		return regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { m in
-			guard let tagRange = Range(m.range(at: 1), in: html) else { return nil }
-			let tag = String(html[tagRange]).lowercased()
-			return ContainerMatch(fullRange: m.range, tag: tag, contentRange: m.range(at: 2))
+		let wellFormedMatches: [ContainerMatch] = wellFormedRegex
+			.matches(in: html, range: NSRange(html.startIndex..., in: html))
+			.compactMap { m in
+				guard let tagRange = Range(m.range(at: 1), in: html) else { return nil }
+				let tag = String(html[tagRange]).lowercased()
+				return ContainerMatch(fullRange: m.range, tag: tag, contentRange: m.range(at: 2))
+			}
+
+		// Pass B: unclosed <p>. Tidemark v1.0 (used by SummaryPostprocessor)
+		// emits opening <p> without a matching </p>; web views infer the close
+		// at the next block-level element. Terminate at the open or close of
+		// any block-level container, or end of input. `</?` makes the slash
+		// optional so the same alternation handles both forms (harmless for
+		// self-closing tags like <hr> — `</hr>` simply never occurs).
+		let unclosedParagraphPattern = "<p\\b[^>]*>([\\s\\S]*?)(?=</?(?:\(blockBoundaryTags))\\b|\\z)"
+		guard let unclosedRegex = try? NSRegularExpression(pattern: unclosedParagraphPattern, options: .caseInsensitive) else {
+			return wellFormedMatches
 		}
+		let unclosedMatches: [ContainerMatch] = unclosedRegex
+			.matches(in: html, range: NSRange(html.startIndex..., in: html))
+			.compactMap { m in
+				// Skip openers already inside a well-formed match (e.g., the
+				// inner <p> of <blockquote><p>…</p></blockquote>).
+				let isInsideWellFormed = wellFormedMatches.contains {
+					NSLocationInRange(m.range.location, $0.fullRange)
+				}
+				if isInsideWellFormed {
+					return nil
+				}
+				return ContainerMatch(fullRange: m.range, tag: "p", contentRange: m.range(at: 1))
+			}
+
+		return wellFormedMatches + unclosedMatches
 	}
 
 	/// Finds top-level `<ul>` and `<ol>` ranges via depth counting. This handles
@@ -324,6 +373,20 @@ public enum SpeechPreprocessor {
 		var openItemAtThisLevel: Event? = nil
 		var results: [(itemRange: NSRange, contentRange: NSRange, openTagLength: Int)] = []
 
+		// Closes `openItemAtThisLevel` at `endLocation` (end of `</li>` for an
+		// explicit close; start of next `<li>` or end of input for an implicit
+		// one) and clears the slot.
+		func closeOpenItem(endLocation: Int) {
+			guard let opened = openItemAtThisLevel else { return }
+			let startLoc = opened.range.location
+			let full = NSRange(location: startLoc, length: max(0, endLocation - startLoc))
+			let contentStart = opened.range.location + opened.range.length
+			let contentLength = max(0, endLocation - contentStart)
+			let content = NSRange(location: contentStart, length: contentLength)
+			results.append((full, content, opened.range.length))
+			openItemAtThisLevel = nil
+		}
+
 		for event in events {
 			switch event.kind {
 			case .openList:
@@ -333,23 +396,21 @@ public enum SpeechPreprocessor {
 			case .openItem:
 				// Only consider <li>s at the top level of the input (listDepth == 0
 				// since we're already inside our list's content; nested <ul>/<ol>
-				// pushes us to listDepth > 0).
+				// pushes us to listDepth > 0). A new top-level <li> implicitly
+				// closes the previous one for HTML5-permissive output where
+				// `</li>` is omitted.
 				if listDepth == 0 {
+					closeOpenItem(endLocation: event.range.location)
 					openItemAtThisLevel = event
 				}
 			case .closeItem:
-				if listDepth == 0, let opened = openItemAtThisLevel {
-					let startLoc = opened.range.location
-					let endLoc = event.range.location + event.range.length
-					let full = NSRange(location: startLoc, length: endLoc - startLoc)
-					let contentStart = opened.range.location + opened.range.length
-					let contentEnd = event.range.location
-					let content = NSRange(location: contentStart, length: contentEnd - contentStart)
-					results.append((full, content, opened.range.length))
-					openItemAtThisLevel = nil
+				if listDepth == 0 {
+					closeOpenItem(endLocation: event.range.location + event.range.length)
 				}
 			}
 		}
+		// Implicitly close any final open <li> at end of input.
+		closeOpenItem(endLocation: nsHTML.length)
 		return results
 	}
 
