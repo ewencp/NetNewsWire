@@ -8,20 +8,39 @@ public enum SpeechBlockBuilder {
 		figureRenderer: ImageRenderer = .defaultForFigures
 	) async -> [SpeechBlock] {
 		var blocks: [SpeechBlock] = []
+		var headingCounters = [0, 0, 0, 0, 0, 0]
 		for segment in content.segments {
 			switch segment {
 			case .paragraph(let text):
 				blocks.append(SpeechBlock(text: text, kind: .paragraph))
 
 			case .heading(let level, let text):
-				let trimmed = text.hasSuffix(".") ? text : text + "."
-				blocks.append(SpeechBlock(text: trimmed, kind: .heading(level: level)))
+				let topicWithPeriod = text.hasSuffix(".") ? text : text + "."
+				let renderedText: String
+				if (1...6).contains(level) {
+					headingCounters[level - 1] += 1
+					for i in level..<6 {
+						headingCounters[i] = 0
+					}
+					let sectionNumber = formatSectionNumber(through: level, counters: headingCounters)
+					renderedText = "Section \(sectionNumber): \(topicWithPeriod)"
+				} else {
+					renderedText = topicWithPeriod
+				}
+				blocks.append(SpeechBlock(text: renderedText, kind: .heading(level: level)))
 
 			case .blockQuote(let text):
 				blocks.append(SpeechBlock(text: "Quote: \(text)", kind: .blockQuote))
 
 			case .listItem(let depth, let ordering, let text):
-				blocks.append(SpeechBlock(text: text, kind: .listItem(depth: depth, ordering: ordering)))
+				let renderedText: String
+				switch ordering {
+				case .ordered(let index):
+					renderedText = "\(index). \(text)"
+				case .unordered:
+					renderedText = text
+				}
+				blocks.append(SpeechBlock(text: renderedText, kind: .listItem(depth: depth, ordering: ordering)))
 
 			case .image(let descriptor):
 				let renderedText = await imageRenderer.render(descriptor)
@@ -51,6 +70,10 @@ public enum SpeechBlockBuilder {
 			}
 		}
 		return blocks
+	}
+
+	private static func formatSectionNumber(through level: Int, counters: [Int]) -> String {
+		counters[0..<level].filter { $0 > 0 }.map(String.init).joined(separator: ".")
 	}
 
 	public struct ImageRenderer: Sendable {
