@@ -10,9 +10,15 @@ let package = Package(
 			type: .dynamic,
 			targets: ["ArticleSpeech"])
 	],
+	dependencies: [
+		.package(name: "RSParser", path: "../RSParser")
+	],
 	targets: [
 		.target(
 			name: "ArticleSpeech",
+			dependencies: [
+				.product(name: "RSParser", package: "RSParser")
+			],
 			swiftSettings: [
 				.enableUpcomingFeature("NonisolatedNonsendingByDefault"),
 				.enableUpcomingFeature("InferIsolatedConformances")
