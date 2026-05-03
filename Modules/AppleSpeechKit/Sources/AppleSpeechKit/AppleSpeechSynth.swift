@@ -77,7 +77,15 @@ public final class AppleSpeechSynth: SpeechSynth {
 	}
 
 	public func pause()  { engine.pauseSpeaking(at: .word) }
-	public func resume() { engine.continueSpeaking() }
+	public func resume() {
+		// Re-activate the audio session before continuing. Required after an
+		// AVAudioSession interruption (e.g., Apple Music takeover) deactivated
+		// the session — without this, AVSpeechSynthesizer plays a brief clip
+		// before iOS kills the engine because no session is active. Activating
+		// here mirrors `play()`'s session lifecycle and is a no-op on macOS.
+		activateAudioSessionIfNeeded()
+		engine.continueSpeaking()
+	}
 
 	public func stop() {
 		guard !avSpeechUtterances.isEmpty else { return }
