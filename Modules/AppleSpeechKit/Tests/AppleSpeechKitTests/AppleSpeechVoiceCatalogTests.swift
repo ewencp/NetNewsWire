@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import AVFoundation
 import ArticleSpeech
 @testable import AppleSpeechKit
 
@@ -34,5 +35,35 @@ struct AppleSpeechVoiceCatalogTests {
 		let defaultVoice = AppleSpeechVoiceCatalog.systemDefault
 		#expect(!defaultVoice.identifier.isEmpty)
 		#expect(!defaultVoice.language.isEmpty)
+	}
+
+	@Test func installedVoicesExcludesNoveltyVoices() {
+		let noveltyIDs = Set(
+			AVSpeechSynthesisVoice.speechVoices()
+				.filter { $0.voiceTraits.contains(.isNoveltyVoice) }
+				.map(\.identifier)
+		)
+		// Sanity: any modern macOS install ships novelty voices stock-installed.
+		// If this assertion fails, the filter test below would be vacuous, so
+		// it's the first signal that the test environment is unusual.
+		#expect(!noveltyIDs.isEmpty, "Expected stock macOS to ship novelty voices for filter verification")
+
+		let installedIDs = Set(AppleSpeechVoiceCatalog.installedVoices(matching: "").map(\.identifier))
+		#expect(installedIDs.intersection(noveltyIDs).isEmpty)
+	}
+
+	@Test func installedVoicesExcludesLegacyPrefixVoices() {
+		let installed = AppleSpeechVoiceCatalog.installedVoices(matching: "")
+		#expect(installed.allSatisfy { !$0.identifier.hasPrefix("com.apple.speech.synthesis.voice.") })
+	}
+
+	@Test func installedVoiceDisplayNamesOmitQualityQualifier() {
+		let voices = AppleSpeechVoiceCatalog.installedVoices(matching: "")
+		for v in voices {
+			#expect(!v.displayName.contains("(Enhanced)"),
+					"displayName '\(v.displayName)' for \(v.identifier) should not contain '(Enhanced)'")
+			#expect(!v.displayName.contains("(Premium)"),
+					"displayName '\(v.displayName)' for \(v.identifier) should not contain '(Premium)'")
+		}
 	}
 }
