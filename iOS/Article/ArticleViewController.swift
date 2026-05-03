@@ -611,7 +611,7 @@ extension ArticleViewController: SpeechCoordinatorObserver {
 
 	private func updateSpeechToolbarButton() {
 		let coordinator = SpeechCoordinator.shared
-		guard let article, coordinator.playingArticleID == article.articleID else {
+		guard let article, coordinator.playingItem?.articleID == article.articleID else {
 			speechToolbarButton.buttonState = .off
 			return
 		}

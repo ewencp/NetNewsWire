@@ -14,8 +14,15 @@ public final class SpeechCoordinator {
 	public static let shared = SpeechCoordinator()
 
 	public private(set) var state: SpeechSynthState = .idle
-	public private(set) var playingArticleID: String? = nil
-	public private(set) var playingArticleTitle: String? = nil
+	public private(set) var playingItem: SpeechItemMetadata? = nil
+
+	/// Current global speech-rate multiplier from `UserDefaults`, falling back
+	/// to the default if not set. Exposed for read-only consumers (e.g. the
+	/// iOS now-playing presenter, which uses it to estimate playback duration).
+	public var currentRateMultiplier: Float {
+		let stored = UserDefaults.standard.float(forKey: SpeechDefaults.rateMultiplierKey)
+		return stored == 0 ? SpeechDefaults.defaultRateMultiplier : stored
+	}
 
 	private let synth: SpeechSynth
 	private let observers = NSHashTable<AnyObject>.weakObjects()
@@ -50,7 +57,13 @@ public final class SpeechCoordinator {
 	///   after the first block starts speaking. Used by content-swap flows
 	///   (Reader View / Summarize toggles on the playing article) to preserve
 	///   the user's paused state across the swap.
-	public func startPlayback(for article: Article, sourceHTML: String, keepPaused: Bool = false) {
+	public func startPlayback(
+		for article: Article,
+		sourceHTML: String,
+		feedName: String?,
+		imageURL: URL?,
+		keepPaused: Bool = false
+	) {
 		let articleID = article.articleID
 		let title = article.title
 
@@ -66,8 +79,16 @@ public final class SpeechCoordinator {
 			let voice = currentVoice(for: article)
 			let rate = currentRate(for: article)
 
-			playingArticleID = articleID
-			playingArticleTitle = title
+			let wordCount = blocks.reduce(0) { count, block in
+				count + block.text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+			}
+			playingItem = SpeechItemMetadata(
+				articleID: articleID,
+				title: title ?? "",
+				feedName: feedName,
+				imageURL: imageURL,
+				wordCount: wordCount
+			)
 			pauseAfterStart = keepPaused
 			cachedBlocks = blocks
 			cachedArticle = article
@@ -161,8 +182,7 @@ extension SpeechCoordinator: SpeechSynthObserver {
 		state = newState
 		switch newState {
 		case .finished, .idle:
-			playingArticleID = nil
-			playingArticleTitle = nil
+			playingItem = nil
 			pauseAfterStart = false
 			cachedBlocks = []
 			cachedArticle = nil
