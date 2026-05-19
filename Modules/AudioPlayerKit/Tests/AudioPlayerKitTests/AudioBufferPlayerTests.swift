@@ -73,6 +73,56 @@ final class ObserverRecorder: AudioBufferPlayerObserver {
 }
 
 @MainActor
+struct AudioBufferPlayerSampleTimeTests {
+
+	@Test
+	func currentSampleTime_isZeroBeforePlay() {
+		let player = AudioBufferPlayer()
+		#expect(player.currentSampleTime == 0)
+	}
+
+	@Test
+	func seekToZero_onIdlePlayer_isNoOp() {
+		let player = AudioBufferPlayer()
+		player.seek(toSampleTime: 0)
+		#expect(player.currentSampleTime == 0)
+	}
+
+	@Test
+	func seekToExactBufferBoundary_setsCurrentSampleTime() {
+		let player = AudioBufferPlayer()
+		let buf1 = makeSilenceBuffer(seconds: 1.0)  // 22050 frames at 22050Hz
+		let buf2 = makeSilenceBuffer(seconds: 1.0)
+		player.enqueue(buf1)
+		player.enqueue(buf2)
+		player.seek(toSampleTime: 22050)
+		// Seeking to exactly the boundary between buf1 and buf2 — frame 22050 is
+		// the first frame of buf2. Without play() called, currentSampleTime reads
+		// from seekBaseline.
+		#expect(player.currentSampleTime == 22050)
+	}
+
+	@Test
+	func seekBeyondLastBuffer_setsBaselineButLeavesNothingScheduled() {
+		let player = AudioBufferPlayer()
+		let buf1 = makeSilenceBuffer(seconds: 1.0)
+		player.enqueue(buf1)
+		// Seek past the end of all known buffers.
+		player.seek(toSampleTime: 50000)
+		#expect(player.currentSampleTime == 50000)
+	}
+
+	@Test
+	func seekIntoMiddleOfBuffer_keepsBaselineAtSeekTarget() {
+		let player = AudioBufferPlayer()
+		let buf1 = makeSilenceBuffer(seconds: 1.0)  // 22050 frames
+		player.enqueue(buf1)
+		player.seek(toSampleTime: 11025)  // halfway through buf1
+		#expect(player.currentSampleTime == 11025)
+	}
+}
+
+@MainActor
 private func makeSilenceBuffer(seconds: Double, sampleRate: Double = 22050) -> AVAudioPCMBuffer {
 	let format = AVAudioFormat(
 		commonFormat: .pcmFormatFloat32,
