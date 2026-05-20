@@ -18,10 +18,18 @@
   },
   "testTargets" : [
     {
+      "enabled" : false,
       "target" : {
         "containerPath" : "container:NetNewsWire.xcodeproj",
         "identifier" : "518B2ED12351B3DD00400001",
         "name" : "NetNewsWire-iOSTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Modules\/AudioPlayerKit",
+        "identifier" : "AudioPlayerKitTests",
+        "name" : "AudioPlayerKitTests"
       }
     }
   ],
