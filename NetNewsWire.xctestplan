@@ -65,48 +65,6 @@
         "identifier" : "849C64701ED37A5D003D8FC0",
         "name" : "NetNewsWireTests"
       }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:Modules\/AppleSpeechKit",
-        "identifier" : "AppleSpeechKitTests",
-        "name" : "AppleSpeechKitTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:Modules\/SpeechCoordinatorKit",
-        "identifier" : "SpeechCoordinatorKitTests",
-        "name" : "SpeechCoordinatorKitTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:Modules\/ArticleSpeech",
-        "identifier" : "ArticleSpeechTests",
-        "name" : "ArticleSpeechTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:Modules\/AudioPlayerKit",
-        "identifier" : "AudioPlayerKitTests",
-        "name" : "AudioPlayerKitTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:Modules\/ArticleAI",
-        "identifier" : "ArticleAITests",
-        "name" : "ArticleAITests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:Modules\/OllamaKit",
-        "identifier" : "OllamaKitTests",
-        "name" : "OllamaKitTests"
-      }
     }
   ],
   "version" : 1
