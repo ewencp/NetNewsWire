@@ -101,6 +101,7 @@ public final class AudioBufferPlayer {
 	}
 
 	public func play() {
+		startObservingNotifications()
 		guard format != nil else {
 			// Nothing enqueued yet — first enqueue will trigger scheduling
 			// and the next play() can start the engine.
@@ -132,6 +133,9 @@ public final class AudioBufferPlayer {
 		scheduledBuffers.removeAll()
 		format = nil
 		seekBaseline = 0
+		#if os(iOS)
+		wasPlayingBeforeInterruption = false
+		#endif
 		state = .idle
 	}
 
@@ -300,4 +304,154 @@ public final class AudioBufferPlayer {
 		}
 		return segment
 	}
+
+	// MARK: - Interruption (iOS only)
+
+#if os(iOS)
+
+	/// Set on `.began` if the player was playing or preparing. Used to decide
+	/// whether to auto-resume after `.ended` with `.shouldResume`.
+	private var wasPlayingBeforeInterruption: Bool = false
+
+	private var interruptionObservationToken: NSObjectProtocol?
+	private var configurationChangeToken: NSObjectProtocol?
+
+	private func startObservingNotifications() {
+		guard interruptionObservationToken == nil else { return }
+
+		interruptionObservationToken = NotificationCenter.default.addObserver(
+			forName: AVAudioSession.interruptionNotification,
+			object: nil,
+			queue: nil
+		) { [weak self] notification in
+			// Notification posts on a background queue. Extract Sendable
+			// primitives, then hop to MainActor.
+			guard let info = notification.userInfo,
+				  let typeRaw = info[AVAudioSessionInterruptionTypeKey] as? UInt else {
+				return
+			}
+			let optionsRaw = (info[AVAudioSessionInterruptionOptionKey] as? UInt) ?? 0
+			Task { @MainActor in
+				self?.handleInterruption(typeRaw: typeRaw, optionsRaw: optionsRaw)
+			}
+		}
+
+		configurationChangeToken = NotificationCenter.default.addObserver(
+			forName: .AVAudioEngineConfigurationChange,
+			object: engine,
+			queue: nil
+		) { [weak self] _ in
+			Task { @MainActor in
+				self?.handleConfigurationChange()
+			}
+		}
+	}
+
+	private func handleInterruption(typeRaw: UInt, optionsRaw: UInt) {
+		guard let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else { return }
+		let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
+		let action = InterruptionDecision.decide(
+			type: type,
+			options: options,
+			currentState: state,
+			wasPlayingBeforeInterruption: wasPlayingBeforeInterruption
+		)
+		apply(interruptionAction: action)
+	}
+
+	private func apply(interruptionAction action: InterruptionAction) {
+		switch action {
+		case .ignore:
+			return
+
+		case .beginInterruption(let rememberToResume):
+			wasPlayingBeforeInterruption = rememberToResume
+			state = .interrupted
+
+		case .attemptResume:
+			// Reactivate the audio session, then restart the engine.
+			// These are separated deliberately because the two
+			// operations have different failure semantics:
+			//
+			// - On a real iOS device coming out of a real interruption,
+			//   the system has deactivated our session at .began and
+			//   may or may not reactivate it before .ended fires.
+			//   Calling setActive(true) here reactivates if needed and
+			//   is a no-op otherwise. If a different app still holds
+			//   the session, setActive can throw — in which case
+			//   ensureEngineRunning() will also fail (engine can't
+			//   start without an active session), and we fall back to
+			//   .interrupted.
+			//
+			// - In a headless simulator test that synthesizes an
+			//   interruption notification, the session was never
+			//   actually deactivated and the engine kept running.
+			//   setActive(true) can still throw a simulator-specific
+			//   error, but the engine restart is a no-op (it was never
+			//   stopped) and playback resumes correctly. Treating
+			//   setActive failure as best-effort keeps this path
+			//   working.
+			do {
+				try AVAudioSession.sharedInstance().setActive(true)
+			} catch {
+				log.warning("AVAudioSession.setActive(true) on interruption end failed: \(error.localizedDescription, privacy: .public). Continuing with engine restart; session may already be active.")
+			}
+
+			do {
+				try ensureEngineRunning()
+				// Don't reschedule here. Per Apple FW Engineer (forum
+				// 663604): engine teardown-recovery belongs in
+				// AVAudioEngineConfigurationChangeNotification, not in
+				// the .ended handler. If the system actually tore the
+				// engine down, `handleConfigurationChange` will fire and
+				// handle the rebuild + reschedule. If the engine kept
+				// running (simulator case, or quick interruption that
+				// didn't trigger teardown), the scheduled buffers are
+				// still on the player node and resume picks up where it
+				// left off.
+				playerNode.play()
+				state = scheduledBuffers.isEmpty && pendingBuffers.isEmpty ? .finished : .playing
+			} catch {
+				log.error("Engine restart after interruption failed: \(error.localizedDescription, privacy: .public)")
+				state = .interrupted
+			}
+			wasPlayingBeforeInterruption = false
+
+		case .acknowledgeEnd:
+			wasPlayingBeforeInterruption = false
+		}
+	}
+
+	private func handleConfigurationChange() {
+		// Engine configuration change can fire after the audio session is
+		// re-activated post-interruption, or when audio routes change. If we
+		// expected to be playing, restart the engine and reschedule from
+		// saved position.
+		guard wasPlayingBeforeInterruption || state == .playing else { return }
+		do {
+			try ensureEngineRunning()
+			rescheduleAfterEngineRebuild()
+			playerNode.play()
+		} catch {
+			log.error("Failed to restart engine after configuration change: \(error.localizedDescription, privacy: .public)")
+		}
+	}
+
+	/// On engine teardown/restart, the player node loses its scheduled
+	/// buffers. Re-schedule what was scheduled, picking up from the current
+	/// sample-time baseline.
+	private func rescheduleAfterEngineRebuild() {
+		let currentScheduled = scheduledBuffers
+		scheduledBuffers.removeAll()
+		pendingBuffers.insert(contentsOf: currentScheduled.map(\.buffer), at: 0)
+		schedulePendingBuffers()
+	}
+
+#else
+
+	private var wasPlayingBeforeInterruption: Bool { false }
+
+	private func startObservingNotifications() {}
+
+#endif
 }
