@@ -4,10 +4,10 @@
     {
       "identity" : "tidemark",
       "kind" : "remoteSourceControl",
-      "location" : "https://codeberg.org/brentsimmons/Tidemark",
+      "location" : "https://github.com/brentsimmons/Tidemark",
       "state" : {
-        "revision" : "e13debf12862439f4fe6dae8c432968967273d9e",
-        "version" : "0.2.4"
+        "revision" : "2a5cd8a715ad1145d36009f5d3f146704d3f7ec0",
+        "version" : "1.0.1"
       }
     }
   ],
