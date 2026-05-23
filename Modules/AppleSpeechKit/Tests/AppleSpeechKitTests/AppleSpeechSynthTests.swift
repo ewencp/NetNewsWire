@@ -54,6 +54,144 @@ struct AppleSpeechSynthBlockBoundaryTests {
 	}
 }
 
+/// Tests for the paragraph-aligned skip semantics — `skipForward()` and
+/// `skipBackward()` should move `currentBlockIndex` by one block and update
+/// `state` immediately (via the seek path's explicit state update, so the
+/// progress UI reflects the new position without waiting for the next
+/// buffer-completion's `didAdvanceTo`).
+///
+/// Like the block-boundary tests, these run against a real
+/// `AVSpeechSynthesizer` and use poll-with-deadline to avoid timing
+/// flakiness from fixed sleeps.
+@MainActor
+struct AppleSpeechSynthSkipTests {
+
+	@Test
+	func skipForward_advancesCurrentBlock() async throws {
+		let synth = AppleSpeechSynth()
+		let voice = try #require(await synth.availableVoices().first)
+		let blocks = (1...3).map { SpeechBlock(text: "Block \($0).", kind: .paragraph) }
+
+		synth.play(blocks: blocks, voice: voice, rate: 1.0, startingAt: 0)
+
+		// Wait until the synth is actually speaking (block 0 fully rendered
+		// and player.play() has fired the .playing state transition). This
+		// avoids the "skip while .preparing" edge case where wasPlaying is
+		// false.
+		try await pollUntil(timeout: 10) {
+			if case .speaking = synth.state {
+				return true
+			}
+			return false
+		}
+
+		synth.skipForward()
+
+		// Skip path updates state immediately to .speaking(1, _); no need
+		// to wait for the next buffer-completion.
+		try await pollUntil(timeout: 5) {
+			if case .speaking(let idx, _) = synth.state, idx == 1 {
+				return true
+			}
+			return false
+		}
+
+		if case let .speaking(blockIndex, totalBlocks) = synth.state {
+			#expect(blockIndex == 1)
+			#expect(totalBlocks == 3)
+		} else {
+			Issue.record("Expected .speaking(1, 3) after skipForward, got \(synth.state)")
+		}
+		synth.stop()
+	}
+
+	@Test
+	func skipBackward_decrementsCurrentBlock() async throws {
+		let synth = AppleSpeechSynth()
+		let voice = try #require(await synth.availableVoices().first)
+		let blocks = (1...3).map { SpeechBlock(text: "Block \($0).", kind: .paragraph) }
+
+		// Start at block 2 so skipBackward has somewhere to go.
+		synth.play(blocks: blocks, voice: voice, rate: 1.0, startingAt: 2)
+
+		try await pollUntil(timeout: 10) {
+			if case .speaking = synth.state {
+				return true
+			}
+			return false
+		}
+
+		synth.skipBackward()
+
+		try await pollUntil(timeout: 10) {
+			if case .speaking(let idx, _) = synth.state, idx == 1 {
+				return true
+			}
+			return false
+		}
+
+		if case let .speaking(blockIndex, totalBlocks) = synth.state {
+			#expect(blockIndex == 1)
+			#expect(totalBlocks == 3)
+		} else {
+			Issue.record("Expected .speaking(1, 3) after skipBackward, got \(synth.state)")
+		}
+		synth.stop()
+	}
+
+	@Test
+	func skipForward_atLastBlock_staysAtLastBlock() async throws {
+		let synth = AppleSpeechSynth()
+		let voice = try #require(await synth.availableVoices().first)
+		let blocks = (1...3).map { SpeechBlock(text: "Block \($0).", kind: .paragraph) }
+
+		// Start at the last block.
+		synth.play(blocks: blocks, voice: voice, rate: 1.0, startingAt: 2)
+
+		try await pollUntil(timeout: 10) {
+			if case .speaking = synth.state {
+				return true
+			}
+			return false
+		}
+
+		synth.skipForward()
+		try await Task.sleep(for: .milliseconds(200))
+
+		// skipForward should clamp at the last block, not advance past it
+		// (and not return to .idle or .finished).
+		if case let .speaking(blockIndex, _) = synth.state {
+			#expect(blockIndex == 2)
+		}
+		synth.stop()
+	}
+
+	@Test
+	func skipBackward_atFirstBlock_staysAtFirstBlock() async throws {
+		let synth = AppleSpeechSynth()
+		let voice = try #require(await synth.availableVoices().first)
+		let blocks = (1...3).map { SpeechBlock(text: "Block \($0).", kind: .paragraph) }
+
+		synth.play(blocks: blocks, voice: voice, rate: 1.0, startingAt: 0)
+
+		try await pollUntil(timeout: 10) {
+			if case .speaking = synth.state {
+				return true
+			}
+			return false
+		}
+
+		synth.skipBackward()
+		try await Task.sleep(for: .milliseconds(200))
+
+		// skipBackward should clamp at block 0.
+		if case let .speaking(blockIndex, _) = synth.state {
+			#expect(blockIndex == 0)
+		}
+		synth.stop()
+	}
+}
+
 /// Poll-with-deadline helper. Returns when `condition` becomes true, or
 /// throws if `timeout` seconds elapse first. Polls every 50ms.
 @MainActor
