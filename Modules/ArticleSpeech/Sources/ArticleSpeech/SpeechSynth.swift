@@ -6,6 +6,14 @@ public protocol SpeechSynth: AnyObject {
 	var state: SpeechSynthState { get }
 	var isAvailable: Bool { get async }
 
+	/// Total estimated duration of the currently-loaded content, in seconds.
+	/// Returns 0 if nothing is loaded.
+	var durationSeconds: Double { get }
+
+	/// Time elapsed since the start of the current content, in seconds.
+	/// Returns 0 if nothing is playing.
+	var elapsedSeconds: Double { get }
+
 	func availableVoices() async -> [SpeechVoice]
 
 	func play(blocks: [SpeechBlock], voice: SpeechVoice, rate: Float, startingAt: Int)
@@ -14,6 +22,9 @@ public protocol SpeechSynth: AnyObject {
 	func stop()
 	func skipForward()
 	func skipBackward()
+
+	/// Seek to the given offset (in seconds) from the start of the current content.
+	func seek(toSeconds seconds: Double)
 
 	func addObserver(_ observer: SpeechSynthObserver)
 	func removeObserver(_ observer: SpeechSynthObserver)

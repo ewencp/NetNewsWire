@@ -11,12 +11,13 @@ let package = Package(
 			targets: ["AppleSpeechKit"])
 	],
 	dependencies: [
-		.package(path: "../ArticleSpeech")
+		.package(path: "../ArticleSpeech"),
+		.package(path: "../AudioPlayerKit")
 	],
 	targets: [
 		.target(
 			name: "AppleSpeechKit",
-			dependencies: ["ArticleSpeech"],
+			dependencies: ["ArticleSpeech", "AudioPlayerKit"],
 			swiftSettings: [
 				.enableUpcomingFeature("NonisolatedNonsendingByDefault"),
 				.enableUpcomingFeature("InferIsolatedConformances")

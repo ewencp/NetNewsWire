@@ -7,13 +7,13 @@ import ArticleSpeech
 @MainActor
 struct AppleSpeechSynthIntegrationTests {
 
-	/// End-to-end smoke test against the real `AVSpeechSynthesizerEngine`. Plays
-	/// a single short block and verifies the state machine reaches `.finished`
-	/// within a generous timeout. Slower than the mock-engine state-machine
-	/// tests because it actually emits audio; kept to one block to bound the
-	/// runtime.
+	/// End-to-end smoke test against the real `AVSpeechSynthesizer.write` +
+	/// `AudioBufferPlayer` pipeline. Plays a single short block and verifies
+	/// the state machine reaches `.finished` within a generous timeout. Slower
+	/// than pure unit tests because it actually emits audio; kept to one block
+	/// to bound the runtime.
 	@Test func playSingleBlockReachesFinishedWithinTimeout() async throws {
-		let synth = AppleSpeechSynth()  // uses real AVSpeechSynthesizerEngine
+		let synth = AppleSpeechSynth()  // uses real AVSpeechSynthesizer + AudioBufferPlayer
 		let voice = AppleSpeechVoiceCatalog.systemDefault
 		let blocks = [SpeechBlock(text: "Hello.", kind: .paragraph)]
 

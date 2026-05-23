@@ -41,15 +41,26 @@ public final class AudioBufferPlayer {
 	/// the start of that new article. The player itself does not know about
 	/// article boundaries — it tracks frames consumed from its current
 	/// buffer-queue origin.
+	///
+	/// While `playerNode` is rendering, the live value is computed from
+	/// `playerNode.lastRenderTime + playerTime.sampleTime` and cached. When
+	/// the node is paused (or briefly between stop/play), `lastRenderTime`
+	/// returns nil; we then return the cache rather than `seekBaseline`, so
+	/// the elapsed position survives a pause instead of snapping back to
+	/// the last seek origin.
 	public var currentSampleTime: AVAudioFramePosition {
-		guard engine.attachedNodes.contains(playerNode),
-			  let lastRenderTime = playerNode.lastRenderTime,
-			  let playerTime = playerNode.playerTime(forNodeTime: lastRenderTime)
-		else {
-			return seekBaseline
+		if engine.attachedNodes.contains(playerNode),
+		   let lastRenderTime = playerNode.lastRenderTime,
+		   let playerTime = playerNode.playerTime(forNodeTime: lastRenderTime) {
+			lastObservedSampleTime = seekBaseline + playerTime.sampleTime
 		}
-		return seekBaseline + playerTime.sampleTime
+		return lastObservedSampleTime
 	}
+
+	/// Cached observation of the most recent live `currentSampleTime`. Used
+	/// to keep elapsed-time queries stable across pause and brief
+	/// stop/play transitions when `playerNode.lastRenderTime` is nil.
+	private var lastObservedSampleTime: AVAudioFramePosition = 0
 
 	// MARK: - Private state
 
@@ -70,6 +81,17 @@ public final class AudioBufferPlayer {
 	/// "frames since article start" rather than "frames since last play/seek."
 	/// Updated on `seek(toSampleTime:)` and on `stop()`.
 	private var seekBaseline: AVAudioFramePosition = 0
+
+	/// Monotonic version tag bumped on every queue-clearing operation
+	/// (`resetQueue`, `seek`, `stop`). Each `scheduleBuffer` call captures
+	/// the current generation; the completion callback checks that its
+	/// generation matches before mutating tracking state. This prevents
+	/// stale completion callbacks (fired by `playerNode.stop()` cancelling
+	/// in-flight buffers) from spuriously removing entries that were
+	/// just re-scheduled — a real hazard because the same
+	/// `AVAudioPCMBuffer` instances are re-enqueued by `resetQueue`,
+	/// so object-identity-based de-duplication is insufficient.
+	private var schedulingGeneration: UInt64 = 0
 
 	private let observers = NSHashTable<AnyObject>.weakObjects()
 
@@ -97,6 +119,15 @@ public final class AudioBufferPlayer {
 		// Pre-play enqueues are scheduled when play() starts the engine.
 		if engine.isRunning {
 			schedulePendingBuffers()
+			// Recover from .finished: if we transitioned to .finished due to a
+			// brief queue underflow (e.g., between speech blocks of a multi-
+			// block utterance), restart playback now that more buffers are
+			// available. .paused stays .paused — the user explicitly paused,
+			// so don't auto-resume.
+			if state == .finished {
+				playerNode.play()
+				state = .playing
+			}
 		}
 	}
 
@@ -126,6 +157,7 @@ public final class AudioBufferPlayer {
 	}
 
 	public func stop() {
+		schedulingGeneration &+= 1
 		playerNode.stop()
 		engine.stop()
 		engine.reset()
@@ -133,6 +165,7 @@ public final class AudioBufferPlayer {
 		scheduledBuffers.removeAll()
 		format = nil
 		seekBaseline = 0
+		lastObservedSampleTime = 0
 		#if os(iOS)
 		wasPlayingBeforeInterruption = false
 		#endif
@@ -145,6 +178,45 @@ public final class AudioBufferPlayer {
 
 	public func removeObserver(_ observer: AudioBufferPlayerObserver) {
 		observers.remove(observer)
+	}
+
+	/// Atomically replace the playback queue with the given buffers, treating
+	/// the first buffer as being at `sampleTime` in the consumer's article-frame
+	/// coordinate space. Existing buffers in scheduledBuffers/pendingBuffers
+	/// are discarded.
+	///
+	/// Use this when the consumer wants to seek to content the player no
+	/// longer has in its queue (e.g., skip-backward to a block whose buffers
+	/// have already played out, but the consumer retained them in its own
+	/// cache). Unlike `seek(toSampleTime:)`, which searches the current queue
+	/// for the target frame, `resetQueue` lets the consumer hand the player a
+	/// fresh queue rooted at any sample-time.
+	///
+	/// Format is preserved (must match the current format if one is set).
+	/// State is unchanged — the consumer typically follows this with
+	/// `play()` to resume.
+	public func resetQueue(with buffers: [AVAudioPCMBuffer], startingAtSampleTime sampleTime: AVAudioFramePosition) {
+		// Bump generation BEFORE clearing — completions from canceled buffers
+		// fire after `playerNode.stop()` and check generation to reject
+		// stale callbacks. Required because consumers may re-enqueue the same
+		// `AVAudioPCMBuffer` instances they had before (e.g., from a retained
+		// rendering cache), so the canceled completion's identity-based
+		// lookup would otherwise match the freshly-rescheduled buffer.
+		schedulingGeneration &+= 1
+		if engine.isRunning {
+			playerNode.stop()
+		}
+		scheduledBuffers.removeAll()
+		pendingBuffers = buffers
+		seekBaseline = sampleTime
+		lastObservedSampleTime = sampleTime
+		// Establish format from the first buffer if not already set.
+		if format == nil, let first = buffers.first {
+			format = first.format
+		}
+		if engine.isRunning {
+			schedulePendingBuffers()
+		}
 	}
 
 	public func seek(toSampleTime sampleTime: AVAudioFramePosition) {
@@ -165,26 +237,33 @@ public final class AudioBufferPlayer {
 		}) else {
 			// Target is past the last buffer — set baseline anyway; the consumer
 			// may enqueue more buffers later.
+			schedulingGeneration &+= 1
 			if engine.isRunning { playerNode.stop() }
 			scheduledBuffers.removeAll()
 			pendingBuffers.removeAll()
 			seekBaseline = sampleTime
+			lastObservedSampleTime = sampleTime
 			return
 		}
 
 		let target = allBuffers[targetIdx]
 		let intraBufferOffset = sampleTime - target.startFrame
 
-		// Tear down current schedule and set new baseline.
+		// Bump generation BEFORE clearing — completions from canceled buffers
+		// fire after `playerNode.stop()` and check generation to reject
+		// stale callbacks.
+		schedulingGeneration &+= 1
 		if engine.isRunning { playerNode.stop() }
 		scheduledBuffers.removeAll()
 		seekBaseline = sampleTime
+		lastObservedSampleTime = sampleTime
 
 		// Move remaining buffers (after targetIdx) into pending for later scheduling.
 		let remaining = Array(allBuffers[(targetIdx + 1)...]).map { $0.buffer }
 		pendingBuffers = remaining
 
 		if engine.isRunning {
+			let gen = schedulingGeneration
 			// Schedule the first buffer (trimmed or whole) directly onto the node,
 			// then schedule remaining via schedulePendingBuffers().
 			if intraBufferOffset > 0 {
@@ -192,7 +271,7 @@ public final class AudioBufferPlayer {
 					scheduledBuffers.append((trimmed, sampleTime))
 					playerNode.scheduleBuffer(trimmed, completionCallbackType: .dataPlayedBack) { [weak self] _ in
 						Task { @MainActor in
-							self?.handleBufferPlayedBack(trimmed)
+							self?.handleBufferPlayedBack(trimmed, scheduledUnderGeneration: gen)
 						}
 					}
 				} else {
@@ -202,7 +281,7 @@ public final class AudioBufferPlayer {
 				scheduledBuffers.append((target.buffer, sampleTime))
 				playerNode.scheduleBuffer(target.buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
 					Task { @MainActor in
-						self?.handleBufferPlayedBack(target.buffer)
+						self?.handleBufferPlayedBack(target.buffer, scheduledUnderGeneration: gen)
 					}
 				}
 			}
@@ -254,6 +333,7 @@ public final class AudioBufferPlayer {
 	}
 
 	private func schedulePendingBuffers() {
+		let gen = schedulingGeneration
 		while let buffer = pendingBuffers.first {
 			pendingBuffers.removeFirst()
 			let startFrame: AVAudioFramePosition = scheduledBuffers.last
@@ -262,16 +342,31 @@ public final class AudioBufferPlayer {
 			scheduledBuffers.append((buffer, startFrame))
 			playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
 				Task { @MainActor in
-					self?.handleBufferPlayedBack(buffer)
+					self?.handleBufferPlayedBack(buffer, scheduledUnderGeneration: gen)
 				}
 			}
 		}
 	}
 
-	private func handleBufferPlayedBack(_ buffer: AVAudioPCMBuffer) {
-		if let idx = scheduledBuffers.firstIndex(where: { $0.buffer === buffer }) {
-			scheduledBuffers.remove(at: idx)
+	private func handleBufferPlayedBack(_ buffer: AVAudioPCMBuffer, scheduledUnderGeneration gen: UInt64) {
+		// Reject stale completions: if the queue has been cleared/rebuilt
+		// since this buffer was scheduled, this callback is from the
+		// previous generation (fired by `playerNode.stop()` cancelling the
+		// old schedule) and must not touch the current scheduling state.
+		// Without this, the same `AVAudioPCMBuffer` instance re-enqueued
+		// via `resetQueue` (legitimately, with a fresh completion of its
+		// own) would be matched by the canceled completion's lookup and
+		// spuriously removed before the buffer has actually played —
+		// causing premature block-advance dispatch and lost real
+		// completion-tracking afterward.
+		guard gen == schedulingGeneration else {
+			return
 		}
+		guard let idx = scheduledBuffers.firstIndex(where: { $0.buffer === buffer }) else {
+			return
+		}
+		scheduledBuffers.remove(at: idx)
+		notifyDidAdvance()
 		if scheduledBuffers.isEmpty && pendingBuffers.isEmpty {
 			state = .finished
 		}
@@ -281,6 +376,18 @@ public final class AudioBufferPlayer {
 		let snapshot = state
 		for case let observer as AudioBufferPlayerObserver in observers.allObjects {
 			observer.audioBufferPlayer(self, didChangeState: snapshot)
+		}
+	}
+
+	/// Notify observers of a sample-time advance. Fires at buffer-completion
+	/// granularity (each scheduled buffer's `.dataPlayedBack` callback).
+	/// Sufficient for block-boundary detection in `AppleSpeechSynth`; finer
+	/// granularity (e.g., for smooth scrubbing position display) would need a
+	/// timer or display-link dispatch.
+	private func notifyDidAdvance() {
+		let snapshot = currentSampleTime
+		for case let observer as AudioBufferPlayerObserver in observers.allObjects {
+			observer.audioBufferPlayer(self, didAdvanceTo: snapshot)
 		}
 	}
 
