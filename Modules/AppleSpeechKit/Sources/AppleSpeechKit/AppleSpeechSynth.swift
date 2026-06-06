@@ -42,10 +42,15 @@ public final class AppleSpeechSynth: SpeechSynth {
 
 	public var durationSeconds: Double {
 		guard player.sampleRate > 0 else { return 0 }
-		let totalEstimatedFrames = blocks.indices.reduce(AVAudioFramePosition(0)) { acc, idx in
-			acc + estimateBlockFrames(at: idx)
+		// Use actual rendered totalFrames when available; fall back to a
+		// text-length-based estimate only for blocks not yet rendered.
+		// As the article plays through, all blocks get rendered and the
+		// duration converges to the true playback time.
+		let totalFrames = blocks.indices.reduce(AVAudioFramePosition(0)) { acc, idx in
+			let frames = renderedBlocks[idx]?.totalFrames ?? estimateBlockFrames(at: idx)
+			return acc + frames
 		}
-		return Double(totalEstimatedFrames) / player.sampleRate
+		return Double(totalFrames) / player.sampleRate
 	}
 
 	public var elapsedSeconds: Double {
@@ -546,11 +551,14 @@ public final class AppleSpeechSynth: SpeechSynth {
 	}
 
 	private func estimateBlockFrames(at index: Int) -> AVAudioFramePosition {
-		// Rough estimate when no buffers rendered yet, used for total duration.
-		// ~12 characters per second at default rate ≈ sampleRate × (chars/12).
+		// Rough estimate used only for blocks not yet rendered. ~15 chars per
+		// second corresponds to ~180 wpm × 5 chars/word ÷ 60s, matching what
+		// AVSpeechSynthesizer at default rate empirically produces. Once a
+		// block renders, its actual `totalFrames` replaces this estimate in
+		// `durationSeconds` so the displayed duration converges to truth.
 		guard index < blocks.count else { return 0 }
 		let chars = blocks[index].text.count
-		let seconds = Double(chars) / 12.0
+		let seconds = Double(chars) / 15.0
 		let sampleRate = player.sampleRate > 0 ? player.sampleRate : 22050
 		return AVAudioFramePosition(seconds * sampleRate)
 	}

@@ -31,12 +31,6 @@ final class SpeechNowPlayingPresenter {
 	private var lastSeenItemID: String?
 	private var lastSeenArtwork: MPMediaItemArtwork?
 
-	/// Approximate words-per-minute baseline. The default speech rate
-	/// (`SpeechDefaults.defaultRateMultiplier`, multiplier 1.0) maps to roughly
-	/// 180 wpm with the typical voice. The coordinator's current rate
-	/// multiplier scales this linearly for the duration estimate.
-	private let baseWordsPerMinute: Double = 180
-
 	init(coordinator: SpeechCoordinator = .shared) {
 		self.coordinator = coordinator
 		self.appIconArtwork = Self.loadAppIconArtwork()
@@ -129,17 +123,13 @@ final class SpeechNowPlayingPresenter {
 		var dict = NowPlayingInfoBuilder.buildInfo(
 			metadata: item,
 			state: coordinator.state,
-			wordsPerMinute: currentEffectiveWordsPerMinute()
+			elapsedSeconds: coordinator.elapsedSeconds,
+			totalDurationSeconds: coordinator.durationSeconds
 		)
 		if let artwork = lastSeenArtwork {
 			dict[MPMediaItemPropertyArtwork] = artwork
 		}
 		nowPlayingInfoCenter.nowPlayingInfo = dict
-	}
-
-	private func currentEffectiveWordsPerMinute() -> Double {
-		let multiplier = max(Double(coordinator.currentRateMultiplier), 0.05)
-		return baseWordsPerMinute * multiplier
 	}
 
 	// MARK: - Remote command center

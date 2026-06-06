@@ -6,13 +6,13 @@ import ArticleSpeech
 
 struct NowPlayingInfoBuilderTests {
 
-	private func sampleMetadata(wordCount: Int = 360) -> SpeechItemMetadata {
+	private func sampleMetadata() -> SpeechItemMetadata {
 		SpeechItemMetadata(
 			articleID: "id-1",
 			title: "Hello World",
 			feedName: "Example Feed",
 			imageURL: URL(string: "https://example.com/img.png"),
-			wordCount: wordCount
+			wordCount: 0
 		)
 	}
 
@@ -20,7 +20,8 @@ struct NowPlayingInfoBuilderTests {
 		let dict = NowPlayingInfoBuilder.buildInfo(
 			metadata: sampleMetadata(),
 			state: .speaking(blockIndex: 0, totalBlocks: 4),
-			wordsPerMinute: 180
+			elapsedSeconds: 0,
+			totalDurationSeconds: 120
 		)
 		#expect(dict[MPMediaItemPropertyTitle] as? String == "Hello World")
 		#expect(dict[MPMediaItemPropertyArtist] as? String == "Example Feed")
@@ -30,7 +31,8 @@ struct NowPlayingInfoBuilderTests {
 		let dict = NowPlayingInfoBuilder.buildInfo(
 			metadata: sampleMetadata(),
 			state: .speaking(blockIndex: 0, totalBlocks: 4),
-			wordsPerMinute: 180
+			elapsedSeconds: 0,
+			totalDurationSeconds: 120
 		)
 		#expect(dict[MPNowPlayingInfoPropertyPlaybackRate] as? Double == 1.0)
 	}
@@ -39,29 +41,21 @@ struct NowPlayingInfoBuilderTests {
 		let dict = NowPlayingInfoBuilder.buildInfo(
 			metadata: sampleMetadata(),
 			state: .paused(blockIndex: 1, totalBlocks: 4),
-			wordsPerMinute: 180
+			elapsedSeconds: 30,
+			totalDurationSeconds: 120
 		)
 		#expect(dict[MPNowPlayingInfoPropertyPlaybackRate] as? Double == 0.0)
 	}
 
-	@Test func durationFromWordCount() {
-		// 360 words at 180 wpm = 2 minutes = 120 seconds
+	@Test func durationAndElapsedPassThrough() {
 		let dict = NowPlayingInfoBuilder.buildInfo(
-			metadata: sampleMetadata(wordCount: 360),
-			state: .speaking(blockIndex: 0, totalBlocks: 4),
-			wordsPerMinute: 180
-		)
-		#expect(dict[MPMediaItemPropertyPlaybackDuration] as? Double == 120.0)
-	}
-
-	@Test func elapsedIsBlockFractionTimesDuration() {
-		// 2/4 of duration = 60 seconds
-		let dict = NowPlayingInfoBuilder.buildInfo(
-			metadata: sampleMetadata(wordCount: 360),
+			metadata: sampleMetadata(),
 			state: .speaking(blockIndex: 2, totalBlocks: 4),
-			wordsPerMinute: 180
+			elapsedSeconds: 42.0,
+			totalDurationSeconds: 300.0
 		)
-		#expect(dict[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double == 60.0)
+		#expect(dict[MPMediaItemPropertyPlaybackDuration] as? Double == 300.0)
+		#expect(dict[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double == 42.0)
 	}
 
 	@Test func nilFeedNameOmitsArtistKey() {
@@ -69,20 +63,21 @@ struct NowPlayingInfoBuilderTests {
 		let dict = NowPlayingInfoBuilder.buildInfo(
 			metadata: m,
 			state: .speaking(blockIndex: 0, totalBlocks: 1),
-			wordsPerMinute: 180
+			elapsedSeconds: 0,
+			totalDurationSeconds: 0
 		)
 		#expect(dict[MPMediaItemPropertyArtist] == nil)
 	}
 
-	@Test func nonProgressStateGivesZeroElapsedAndNoCrash() {
+	@Test func zeroDurationAndElapsedAreFiniteAndZero() {
 		let dict = NowPlayingInfoBuilder.buildInfo(
-			metadata: sampleMetadata(wordCount: 360),
+			metadata: sampleMetadata(),
 			state: .preparing,
-			wordsPerMinute: 180
+			elapsedSeconds: 0,
+			totalDurationSeconds: 0
 		)
-		if let elapsed = dict[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double {
-			#expect(elapsed.isFinite)
-			#expect(elapsed == 0.0)
-		}
+		#expect((dict[MPMediaItemPropertyPlaybackDuration] as? Double) == 0)
+		#expect((dict[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double) == 0)
+		#expect(dict[MPNowPlayingInfoPropertyPlaybackRate] as? Double == 0.0)
 	}
 }

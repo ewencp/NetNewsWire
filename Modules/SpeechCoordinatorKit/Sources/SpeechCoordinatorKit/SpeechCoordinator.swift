@@ -132,6 +132,14 @@ public final class SpeechCoordinator {
 	public func skipForward() { synth.skipForward() }
 	public func skipBackward() { synth.skipBackward() }
 
+	/// Total estimated duration of the currently-loaded content, in seconds.
+	/// Returns 0 if nothing is loaded.
+	public var durationSeconds: Double { synth.durationSeconds }
+
+	/// Time elapsed since the start of the current content, in seconds.
+	/// Returns 0 if nothing is playing.
+	public var elapsedSeconds: Double { synth.elapsedSeconds }
+
 	public func setRate(_ rateMultiplier: Float) {
 		UserDefaults.standard.set(rateMultiplier, forKey: SpeechDefaults.rateMultiplierKey)
 	}
