@@ -5,15 +5,18 @@
 
 import UIKit
 import MediaPlayer
-import AVFoundation
 import SpeechCoordinatorKit
 
 /// Bridges `SpeechCoordinator` to the iOS lock-screen and Control Center
 /// "Now Playing" UI. Owns:
 /// - `MPNowPlayingInfoCenter` updates (driven by coordinator observer callbacks)
 /// - `MPRemoteCommandCenter` registration and handlers (call back into coordinator)
-/// - `AVAudioSession.interruptionNotification` observation
 /// - App-icon fallback artwork (cached at init)
+///
+/// Audio-session interruption recovery lives in `AudioBufferPlayer` (the
+/// PCM player owned by `AppleSpeechSynth`), not here — the presenter
+/// observes `SpeechCoordinator` state changes and reflects them in the
+/// Now Playing UI without managing the underlying audio engine.
 ///
 /// Held by `AppDelegate` as an app-lifetime singleton.
 @MainActor
@@ -24,13 +27,9 @@ final class SpeechNowPlayingPresenter {
 	private let remoteCommandCenter = MPRemoteCommandCenter.shared()
 	private let appIconArtwork: MPMediaItemArtwork?
 
-	/// Single bit of presenter state for the interruption state machine.
-	private var pendingResumeFromInterruption: Bool = false
-
 	private var artworkFetchTask: URLSessionDataTask?
 	private var lastSeenItemID: String?
 	private var lastSeenArtwork: MPMediaItemArtwork?
-	private var interruptionObservationToken: NSObjectProtocol?
 
 	/// Approximate words-per-minute baseline. The default speech rate
 	/// (`SpeechDefaults.defaultRateMultiplier`, multiplier 1.0) maps to roughly
@@ -44,17 +43,15 @@ final class SpeechNowPlayingPresenter {
 
 		coordinator.addObserver(self)
 		registerRemoteCommandHandlers()
-		observeInterruptionNotifications()
 		nowPlayingInfoCenter.nowPlayingInfo = nil
 	}
 
 	// Note: no deinit cleanup. The presenter is an app-lifetime singleton, so
-	// deinit only fires in tests. The interruption observer's closure captures
-	// `self` weakly and becomes a no-op once the presenter deallocates;
-	// `URLSessionDataTask`s in flight either complete or get cancelled when
-	// the network stack tears down. Adding cleanup here would require accessing
-	// `@MainActor`-isolated state from a nonisolated deinit, which Swift 6
-	// rejects without an isolated-deinit (which the broader project doesn't use).
+	// deinit only fires in tests. `URLSessionDataTask`s in flight either
+	// complete or get cancelled when the network stack tears down. Adding
+	// cleanup here would require accessing `@MainActor`-isolated state from
+	// a nonisolated deinit, which Swift 6 rejects without an isolated-deinit
+	// (which the broader project doesn't use).
 
 	// MARK: - Artwork loading
 
@@ -85,14 +82,6 @@ final class SpeechNowPlayingPresenter {
 	// MARK: - Coordinator observer
 
 	private func handleCoordinatorUpdate() {
-		// Safety: if the user resumed manually mid-interruption, clear the
-		// pending-resume flag so the system's later resume hint doesn't
-		// double-toggle.
-		if pendingResumeFromInterruption,
-		   case .speaking = coordinator.state {
-			pendingResumeFromInterruption = false
-		}
-
 		guard let item = coordinator.playingItem else {
 			// Idle / finished — clear the now-playing UI and tear down artwork fetch.
 			artworkFetchTask?.cancel()
@@ -216,59 +205,6 @@ final class SpeechNowPlayingPresenter {
 		remoteCommandCenter.previousTrackCommand.isEnabled = false
 		remoteCommandCenter.changePlaybackPositionCommand.isEnabled = false
 		remoteCommandCenter.stopCommand.isEnabled = false
-	}
-
-	// MARK: - Audio session interruption
-
-	private func observeInterruptionNotifications() {
-		interruptionObservationToken = NotificationCenter.default.addObserver(
-			forName: AVAudioSession.interruptionNotification,
-			object: nil,
-			queue: nil
-		) { [weak self] notification in
-			// AVAudioSession posts on a background queue. Extract Sendable
-			// primitives from the notification on whatever queue we're on
-			// (Notification itself isn't Sendable), then hop to main with
-			// just those values.
-			guard let info = notification.userInfo,
-			      let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt else {
-				return
-			}
-			let optionsRaw = (info[AVAudioSessionInterruptionOptionKey] as? UInt) ?? 0
-			Task { @MainActor in
-				self?.handleInterruption(typeValue: typeValue, optionsRaw: optionsRaw)
-			}
-		}
-	}
-
-	private func handleInterruption(typeValue: UInt, optionsRaw: UInt) {
-		guard let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-			return
-		}
-
-		let event: InterruptionEvent
-		switch type {
-		case .began:
-			event = .began
-		case .ended:
-			let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
-			event = .ended(shouldResume: options.contains(.shouldResume))
-		@unknown default:
-			return
-		}
-
-		let outcome = InterruptionStateMachine.transition(
-			currentState: coordinator.state,
-			event: event,
-			pendingResume: pendingResumeFromInterruption
-		)
-		pendingResumeFromInterruption = outcome.newPendingResume
-		switch outcome.action {
-		case .togglePlayPause:
-			coordinator.togglePlayPause()
-		case .none:
-			break
-		}
 	}
 }
 
