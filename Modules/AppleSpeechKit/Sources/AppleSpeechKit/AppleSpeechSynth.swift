@@ -124,6 +124,18 @@ public final class AppleSpeechSynth: SpeechSynth {
 			return
 		}
 
+		// Seed `player.seekBaseline` to the cumulative sample-time of the
+		// start block so `currentSampleTime` (and the lock-screen progress
+		// bar) reports the correct article-frame coordinate from the
+		// first buffer onward. Without this, starting at block N > 0
+		// plays the right audio but `blockIndex(forSampleTime:)` would
+		// map the early sample-times to block 0 because seekBaseline=0
+		// would put them at the article's beginning.
+		if safeStart > 0 {
+			player.resetQueue(with: [], startingAtSampleTime: startSampleTime(forBlockIndex: safeStart))
+			lastEnqueuedBlockIndex = safeStart - 1
+		}
+
 		state = .preparing
 		activateAudioSessionIfNeeded()
 		ensureRenderingProgresses()
@@ -168,9 +180,13 @@ public final class AppleSpeechSynth: SpeechSynth {
 	public func seek(toSeconds seconds: Double) {
 		guard player.sampleRate > 0, !blocks.isEmpty else { return }
 		let targetFrame = AVAudioFramePosition(seconds * player.sampleRate)
+		// `blockIndex(forSampleTime:)` now walks ALL blocks (using actual
+		// `totalFrames` for rendered ones, estimates otherwise), so it
+		// works for scrub targets in unrendered blocks too.
 		let targetBlock = blockIndex(forSampleTime: targetFrame) ?? 0
-		let blockStart = renderedBlocks[targetBlock]?.startSampleTime ?? 0
-		seek(toBlockIndex: targetBlock, withinBlockSampleOffset: targetFrame - blockStart)
+		let blockStart = startSampleTime(forBlockIndex: targetBlock)
+		let offset = max(0, targetFrame - blockStart)
+		seek(toBlockIndex: targetBlock, withinBlockSampleOffset: offset)
 	}
 
 	public func addObserver(_ observer: SpeechSynthObserver) {
@@ -183,14 +199,42 @@ public final class AppleSpeechSynth: SpeechSynth {
 
 	// MARK: - Block-boundary lookup (internal — for tests and seek)
 
+	/// Cumulative sample-time of where this block begins, in the same
+	/// article-frame coordinate as `currentSampleTime` / `durationSeconds`.
+	/// Computed on demand from `renderedBlocks[i].totalFrames` where rendered
+	/// and the text-length estimate otherwise, so the value stays consistent
+	/// as more blocks render. Storing it would let it go stale: the original
+	/// stored-and-chained approach polluted later blocks' stored value when
+	/// a priority-render (scrub-forward) introduced an all-estimate link.
+	internal func startSampleTime(forBlockIndex index: Int) -> AVAudioFramePosition {
+		guard index >= 0, index < blocks.count else { return 0 }
+		return (0..<index).reduce(AVAudioFramePosition(0)) { acc, i in
+			acc + (renderedBlocks[i]?.totalFrames ?? estimateBlockFrames(at: i))
+		}
+	}
+
 	internal func blockBoundarySampleTime(forBlockIndex index: Int) -> AVAudioFramePosition? {
-		renderedBlocks[index]?.startSampleTime
+		// Returns the boundary only for rendered blocks (used by tests
+		// to verify rendering completed). Unrendered blocks return nil
+		// to preserve the "have we rendered this yet?" semantic.
+		guard renderedBlocks[index] != nil else { return nil }
+		return startSampleTime(forBlockIndex: index)
 	}
 
 	internal func blockIndex(forSampleTime sampleTime: AVAudioFramePosition) -> Int? {
-		// Find the highest index whose startSampleTime <= sampleTime.
-		let sorted = renderedBlocks.sorted { $0.key < $1.key }
-		return sorted.last(where: { $0.value.startSampleTime <= sampleTime })?.key
+		// Walk cumulative starts (using the on-demand helper, so the values
+		// don't go stale as renders complete). Return the block whose
+		// [start, start+frames) range contains sampleTime.
+		guard !blocks.isEmpty else { return nil }
+		var cumulative: AVAudioFramePosition = 0
+		for idx in blocks.indices {
+			let frames = renderedBlocks[idx]?.totalFrames ?? estimateBlockFrames(at: idx)
+			if sampleTime < cumulative + frames {
+				return idx
+			}
+			cumulative += frames
+		}
+		return blocks.count - 1
 	}
 
 	// MARK: - Rendering window
@@ -217,12 +261,13 @@ public final class AppleSpeechSynth: SpeechSynth {
 
 		evictOutOfWindow()
 
-		if let targetBlock = renderedBlocks[bounded] {
+		if renderedBlocks[bounded] != nil {
 			// Target already rendered: rebuild the player's queue from
 			// renderedBlocks starting at the target. Enqueue only the
 			// contiguous run of rendered blocks from `bounded` forward —
 			// `topUpPlayerQueue` will pick up further blocks as the window
 			// slides and renders complete.
+			let blockStart = startSampleTime(forBlockIndex: bounded)
 			let upperBound = min(bounded + prefetchAhead, blocks.count - 1)
 			var contiguousBuffers: [AVAudioPCMBuffer] = []
 			var lastIncluded = bounded - 1
@@ -231,15 +276,30 @@ public final class AppleSpeechSynth: SpeechSynth {
 				contiguousBuffers.append(contentsOf: rb.buffers)
 				lastIncluded = i
 			}
-			player.resetQueue(with: contiguousBuffers, startingAtSampleTime: targetBlock.startSampleTime)
+			player.resetQueue(with: contiguousBuffers, startingAtSampleTime: blockStart)
 			lastEnqueuedBlockIndex = lastIncluded
 
-			// Update state immediately to reflect the new blockIndex.
-			// `player.state` didn't change values (stayed `.playing`), so
-			// the player's didChangeState observer chain won't fire here —
-			// without this explicit update, observers (and the UI's
-			// progress bar) wouldn't see the position change until the
-			// next buffer completion's didAdvanceTo arrives mid-block.
+			if offset > 0 {
+				// Intra-block offset: now that the queue is rebuilt and the
+				// target block's buffers are scheduled, `player.seek` can
+				// find the offset within them. Run BEFORE the state update
+				// below so observers (the iOS now-playing presenter in
+				// particular) see `seekBaseline = blockStart + offset` —
+				// not the bare `blockStart` left by `resetQueue` — when
+				// they read `elapsedSeconds` during the synchronous
+				// `didSet` cascade. Otherwise the lock-screen progress
+				// bar publishes the queue-start position (e.g., 3s if
+				// the target block began near the article start) instead
+				// of the actual scrub target (e.g., 20s).
+				player.seek(toSampleTime: blockStart + offset)
+			}
+
+			// Update state to reflect the new blockIndex. `player.state`
+			// didn't change values (stayed `.playing`), so the player's
+			// didChangeState observer chain won't fire here — without this
+			// explicit update, observers (and the UI's progress bar)
+			// wouldn't see the position change until the next buffer
+			// completion's didAdvanceTo arrives mid-block.
 			switch state {
 			case .speaking:
 				state = .speaking(blockIndex: bounded, totalBlocks: blocks.count)
@@ -247,13 +307,6 @@ public final class AppleSpeechSynth: SpeechSynth {
 				state = .paused(blockIndex: bounded, totalBlocks: blocks.count)
 			default:
 				break
-			}
-
-			if offset > 0 {
-				// Intra-block offset: now that the queue is rebuilt and the
-				// target block's buffers are scheduled, `player.seek` can
-				// find the offset within them.
-				player.seek(toSampleTime: targetBlock.startSampleTime + offset)
 			}
 
 			if wasPlaying {
@@ -266,9 +319,13 @@ public final class AppleSpeechSynth: SpeechSynth {
 			// Target not yet rendered: clear the player's stale queue, kick
 			// off priority render. Post-render callback in
 			// `ensureRenderingProgresses` will seek+play when buffers
-			// arrive.
+			// arrive. `seekBaseline` is set to the on-demand-computed
+			// cumulative position so `elapsedSeconds` (which the lock-screen
+			// progress bar reads while we re-render) stays at the scrub
+			// target rather than snapping to 0 and jumping when the render
+			// finishes.
 			state = .preparing
-			player.resetQueue(with: [], startingAtSampleTime: 0)
+			player.resetQueue(with: [], startingAtSampleTime: startSampleTime(forBlockIndex: bounded) + offset)
 			lastEnqueuedBlockIndex = bounded - 1
 			ensureRenderingProgresses(priorityBlock: bounded, postRenderSeekOffset: offset, postRenderPlay: wasPlaying)
 		}
@@ -337,15 +394,20 @@ public final class AppleSpeechSynth: SpeechSynth {
 			}
 			// Current block first (so playback can start ASAP).
 			if renderedBlocks[currentBlockIndex] == nil { return currentBlockIndex }
-			// Then forward prefetch in order.
+			// Then forward prefetch in order. Backward-retention rendering is
+			// deliberately omitted: with eviction disabled, anything we've
+			// played forward through stays in `renderedBlocks`, so the only
+			// time backward-retention would do work is when starting in the
+			// middle of the article (`play(startingAt: N > 0)`) or after a
+			// forward-scrub priority-render — exactly the cases where
+			// replacing the estimate-derived cumulative position with actual
+			// `totalFrames` would shift the article-frame coordinate that
+			// `seekBaseline` was anchored to, making `blockIndex(forSampleTime:)`
+			// disagree with the current playback position. If the user later
+			// skips back to an unrendered block, `seek(toBlockIndex:)`'s
+			// priority-render path renders it on demand.
 			if currentBlockIndex + 1 <= hi {
 				for idx in (currentBlockIndex + 1)...hi {
-					if renderedBlocks[idx] == nil { return idx }
-				}
-			}
-			// Then backward retention (skip-back support).
-			if currentBlockIndex - 1 >= lo {
-				for idx in stride(from: currentBlockIndex - 1, through: lo, by: -1) {
 					if renderedBlocks[idx] == nil { return idx }
 				}
 			}
@@ -368,9 +430,11 @@ public final class AppleSpeechSynth: SpeechSynth {
 			self?.renderingTask = nil
 
 			if priorityBlock == nextTarget,
-			   let block = self?.renderedBlocks[nextTarget] {
-				self?.player.seek(toSampleTime: block.startSampleTime + postRenderSeekOffset)
-				if postRenderPlay { self?.player.play() }
+			   let self = self,
+			   self.renderedBlocks[nextTarget] != nil {
+				let blockStart = self.startSampleTime(forBlockIndex: nextTarget)
+				self.player.seek(toSampleTime: blockStart + postRenderSeekOffset)
+				if postRenderPlay { self.player.play() }
 			}
 
 			self?.ensureRenderingProgresses()
@@ -393,17 +457,6 @@ public final class AppleSpeechSynth: SpeechSynth {
 		// than per-callback so the decision is consistent for the whole
 		// render even if `currentBlockIndex` advances during render.
 		let shouldEnqueueThisRender = index >= currentBlockIndex
-
-		// Compute startSampleTime relative to prior blocks. If the prior block
-		// is rendered, use its true end; otherwise estimate from text length.
-		let startSampleTime: AVAudioFramePosition
-		if index == 0 {
-			startSampleTime = 0
-		} else if let prior = renderedBlocks[index - 1] {
-			startSampleTime = prior.startSampleTime + prior.totalFrames
-		} else {
-			startSampleTime = (0..<index).reduce(AVAudioFramePosition(0)) { $0 + estimateBlockFrames(at: $1) }
-		}
 
 		// Holder for write-callback-mutated state. The callback may run on a
 		// background thread (and we hop to MainActor inside), so we wrap mutable
@@ -473,7 +526,6 @@ public final class AppleSpeechSynth: SpeechSynth {
 
 		renderedBlocks[index] = RenderedBlock(
 			blockIndex: index,
-			startSampleTime: startSampleTime,
 			totalFrames: totalFrames,
 			buffers: collectedBuffers
 		)
@@ -601,7 +653,13 @@ public final class AppleSpeechSynth: SpeechSynth {
 
 private struct RenderedBlock {
 	let blockIndex: Int
-	let startSampleTime: AVAudioFramePosition
+	/// Total frames including pre/post silence. The block's start position
+	/// in article-frame coordinate is NOT stored here — it's computed on
+	/// demand via `AppleSpeechSynth.startSampleTime(forBlockIndex:)` so it
+	/// stays consistent as more blocks render. Storing it caused cascade
+	/// pollution: a priority-render whose prior block wasn't cached fell
+	/// back to all-estimates for the start, and later blocks chained
+	/// from that polluted value.
 	let totalFrames: AVAudioFramePosition
 	let buffers: [AVAudioPCMBuffer]
 }

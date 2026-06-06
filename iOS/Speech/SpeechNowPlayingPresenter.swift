@@ -188,12 +188,23 @@ final class SpeechNowPlayingPresenter {
 			}
 		}
 
+		remoteCommandCenter.changePlaybackPositionCommand.isEnabled = true
+		remoteCommandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+			MainActor.assumeIsolated { () -> MPRemoteCommandHandlerStatus in
+				guard let self,
+				      let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
+					return .commandFailed
+				}
+				self.coordinator.seek(toSeconds: positionEvent.positionTime)
+				return .success
+			}
+		}
+
 		// Defensively disable commands we do not handle. MPRemoteCommandCenter
 		// is a singleton with persistent state; prior process registrations
 		// can leak across launches in some scenarios.
 		remoteCommandCenter.nextTrackCommand.isEnabled = false
 		remoteCommandCenter.previousTrackCommand.isEnabled = false
-		remoteCommandCenter.changePlaybackPositionCommand.isEnabled = false
 		remoteCommandCenter.stopCommand.isEnabled = false
 	}
 }

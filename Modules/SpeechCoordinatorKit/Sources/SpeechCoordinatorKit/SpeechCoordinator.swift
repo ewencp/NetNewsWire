@@ -132,6 +132,11 @@ public final class SpeechCoordinator {
 	public func skipForward() { synth.skipForward() }
 	public func skipBackward() { synth.skipBackward() }
 
+	/// Seek to the given offset (in seconds) from the start of the current
+	/// content. Used by `MPRemoteCommandCenter.changePlaybackPositionCommand`
+	/// for lock-screen scrubbing.
+	public func seek(toSeconds seconds: Double) { synth.seek(toSeconds: seconds) }
+
 	/// Total estimated duration of the currently-loaded content, in seconds.
 	/// Returns 0 if nothing is loaded.
 	public var durationSeconds: Double { synth.durationSeconds }

@@ -220,6 +220,13 @@ public final class AudioBufferPlayer {
 	}
 
 	public func seek(toSampleTime sampleTime: AVAudioFramePosition) {
+		// `sampleTime` is in the consumer's article-frame coordinate (same
+		// basis as `seekBaseline`). Buffers in `scheduledBuffers`/`pendingBuffers`
+		// carry queue-relative `startFrame` values (always starting at 0 for
+		// the first scheduled buffer after a fresh `resetQueue`/`seek`).
+		// Translate before searching.
+		let queueRelative = sampleTime - seekBaseline
+
 		// Resolve all known buffers (scheduled + pending) with their start frames.
 		var allBuffers: [(buffer: AVAudioPCMBuffer, startFrame: AVAudioFramePosition)] = scheduledBuffers
 		var nextStart: AVAudioFramePosition = scheduledBuffers.last
@@ -230,12 +237,13 @@ public final class AudioBufferPlayer {
 			nextStart += AVAudioFramePosition(pending.frameLength)
 		}
 
-		// Find the buffer containing `sampleTime`.
+		// Find the buffer containing `queueRelative`.
 		guard let targetIdx = allBuffers.firstIndex(where: { entry in
 			let endFrame = entry.startFrame + AVAudioFramePosition(entry.buffer.frameLength)
-			return sampleTime >= entry.startFrame && sampleTime < endFrame
+			return queueRelative >= entry.startFrame && queueRelative < endFrame
 		}) else {
-			// Target is past the last buffer — set baseline anyway; the consumer
+			// Target is past the last buffer (or before the first if
+			// `queueRelative` is negative) — set baseline anyway; the consumer
 			// may enqueue more buffers later.
 			schedulingGeneration &+= 1
 			if engine.isRunning { playerNode.stop() }
@@ -247,7 +255,7 @@ public final class AudioBufferPlayer {
 		}
 
 		let target = allBuffers[targetIdx]
-		let intraBufferOffset = sampleTime - target.startFrame
+		let intraBufferOffset = queueRelative - target.startFrame
 
 		// Bump generation BEFORE clearing — completions from canceled buffers
 		// fire after `playerNode.stop()` and check generation to reject
@@ -265,10 +273,11 @@ public final class AudioBufferPlayer {
 		if engine.isRunning {
 			let gen = schedulingGeneration
 			// Schedule the first buffer (trimmed or whole) directly onto the node,
-			// then schedule remaining via schedulePendingBuffers().
+			// then schedule remaining via schedulePendingBuffers(). Stored
+			// `startFrame` is queue-relative (0 — first in the fresh queue).
 			if intraBufferOffset > 0 {
 				if let trimmed = makeBufferSegment(target.buffer, fromFrame: AVAudioFrameCount(intraBufferOffset)) {
-					scheduledBuffers.append((trimmed, sampleTime))
+					scheduledBuffers.append((trimmed, 0))
 					playerNode.scheduleBuffer(trimmed, completionCallbackType: .dataPlayedBack) { [weak self] _ in
 						Task { @MainActor in
 							self?.handleBufferPlayedBack(trimmed, scheduledUnderGeneration: gen)
@@ -278,7 +287,7 @@ public final class AudioBufferPlayer {
 					log.error("Failed to create buffer segment at sampleTime \(sampleTime, privacy: .public); seek will skip the intra-buffer remainder")
 				}
 			} else {
-				scheduledBuffers.append((target.buffer, sampleTime))
+				scheduledBuffers.append((target.buffer, 0))
 				playerNode.scheduleBuffer(target.buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
 					Task { @MainActor in
 						self?.handleBufferPlayedBack(target.buffer, scheduledUnderGeneration: gen)
