@@ -160,11 +160,23 @@ final class SpeechNowPlayingPresenter {
 		remoteCommandCenter.pauseCommand.addTarget { [weak self] _ in
 			MainActor.assumeIsolated { () -> MPRemoteCommandHandlerStatus in
 				guard let self else { return .commandFailed }
-				if case .speaking = self.coordinator.state {
+				// AirPods (verified on iPad mini via device logging) route ALL
+				// headphone single-presses through pauseCommand regardless of
+				// our published MPNowPlayingInfoPropertyPlaybackRate. iOS uses
+				// an internal state machine — not our nowPlayingInfo — to pick
+				// which remote command to dispatch, and on this hardware it
+				// always picks pauseCommand. So pauseCommand has to toggle
+				// from both .speaking and .paused for AirPods to work both
+				// directions. Lock-screen UI only shows the pause button when
+				// iOS thinks we're playing, so its dispatch naturally hits
+				// the .speaking branch and remains semantically correct.
+				switch self.coordinator.state {
+				case .speaking, .paused:
 					self.coordinator.togglePlayPause()
 					return .success
+				default:
+					return .noActionableNowPlayingItem
 				}
-				return .noActionableNowPlayingItem
 			}
 		}
 
