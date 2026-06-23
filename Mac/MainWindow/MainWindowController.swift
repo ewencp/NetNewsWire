@@ -477,12 +477,17 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 	@IBAction func toggleSpeech(_ sender: Any?) {
 		guard let article = oneSelectedArticle else { return }
 		let coordinator = SpeechCoordinator.shared
-		if coordinator.playingArticleID == article.articleID {
+		if coordinator.playingItem?.articleID == article.articleID {
 			coordinator.togglePlayPause()
 			return
 		}
 		let sourceHTML = currentDisplayedSourceHTMLForSpeech(for: article)
-		coordinator.startPlayback(for: article, sourceHTML: sourceHTML)
+		coordinator.startPlayback(
+			for: article,
+			sourceHTML: sourceHTML,
+			feedName: article.feed?.nameForDisplay,
+			imageURL: article.preferredArtworkURL
+		)
 	}
 
 	private func currentDisplayedSourceHTMLForSpeech(for article: Article) -> String {
@@ -1225,7 +1230,7 @@ extension MainWindowController: SpeechCoordinatorObserver {
 			return
 		}
 		let coordinator = SpeechCoordinator.shared
-		guard let article = oneSelectedArticle, coordinator.playingArticleID == article.articleID else {
+		guard let article = oneSelectedArticle, coordinator.playingItem?.articleID == article.articleID else {
 			button.buttonState = .off
 			return
 		}

@@ -1,0 +1,43 @@
+{
+  "configurations" : [
+    {
+      "id" : "F7B22A41-2D90-4C71-A2A0-3F2E1B82C6F4",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:NetNewsWire.xcodeproj",
+      "identifier" : "849C645F1ED37A5D003D8FC0",
+      "name" : "NetNewsWire"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Modules\/CloudKitSync",
+        "identifier" : "CloudKitSyncTests",
+        "name" : "CloudKitSyncTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Modules\/FeedFinder",
+        "identifier" : "FeedFinderTests",
+        "name" : "FeedFinderTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Modules\/NewsBlur",
+        "identifier" : "NewsBlurTests",
+        "name" : "NewsBlurTests"
+      }
+    }
+  ],
+  "version" : 1
+}

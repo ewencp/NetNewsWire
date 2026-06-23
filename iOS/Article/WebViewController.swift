@@ -359,11 +359,16 @@ final class WebViewController: UIViewController {
 	func toggleSpeech() {
 		guard let article else { return }
 		let coordinator = SpeechCoordinator.shared
-		if coordinator.playingArticleID == article.articleID {
+		if coordinator.playingItem?.articleID == article.articleID {
 			coordinator.togglePlayPause()
 			return
 		}
-		coordinator.startPlayback(for: article, sourceHTML: currentDisplayedSourceHTML())
+		coordinator.startPlayback(
+			for: article,
+			sourceHTML: currentDisplayedSourceHTML(),
+			feedName: article.feed?.nameForDisplay,
+			imageURL: article.preferredArtworkURL
+		)
 	}
 
 	/// Returns the HTML currently displayed in the web view (summarized,
@@ -384,12 +389,18 @@ final class WebViewController: UIViewController {
 	func refreshSpeechSourceIfPlaying() {
 		guard let article else { return }
 		let coordinator = SpeechCoordinator.shared
-		guard coordinator.playingArticleID == article.articleID, coordinator.state.isActive else {
+		guard coordinator.playingItem?.articleID == article.articleID, coordinator.state.isActive else {
 			return
 		}
 		let wasPaused: Bool
 		if case .paused = coordinator.state { wasPaused = true } else { wasPaused = false }
-		coordinator.startPlayback(for: article, sourceHTML: currentDisplayedSourceHTML(), keepPaused: wasPaused)
+		coordinator.startPlayback(
+			for: article,
+			sourceHTML: currentDisplayedSourceHTML(),
+			feedName: article.feed?.nameForDisplay,
+			imageURL: article.preferredArtworkURL,
+			keepPaused: wasPaused
+		)
 	}
 
 	func stopArticleExtractorIfProcessing() {

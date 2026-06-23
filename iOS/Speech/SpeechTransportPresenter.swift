@@ -56,7 +56,7 @@ final class SpeechTransportPresenter {
 extension SpeechTransportPresenter: SpeechCoordinatorObserver {
 
 	func speechCoordinatorDidUpdate(_ coordinator: SpeechCoordinator) {
-		transportView.update(state: coordinator.state, title: coordinator.playingArticleTitle)
+		transportView.update(state: coordinator.state, title: coordinator.playingItem?.title)
 		applyHeight()
 		UIView.animate(withDuration: 0.2) { [weak self] in
 			self?.hostView?.layoutIfNeeded()

@@ -16,6 +16,7 @@ import Account
 import Articles
 import Secrets
 import ErrorLog
+import SpeechCoordinatorKit
 
 @MainActor var appDelegate: AppDelegate!
 
@@ -49,6 +50,8 @@ import ErrorLog
 	var isSyncArticleStatusRunning = false
 	var isWaitingForSyncTasks = false
 
+	private var speechNowPlayingPresenter: SpeechNowPlayingPresenter?
+
 	override init() {
 		super.init()
 		appDelegate = self
@@ -79,6 +82,8 @@ import ErrorLog
 		CacheCleaner.purgeIfNecessary()
 		initializeDownloaders()
 		initializeHomeScreenQuickActions()
+
+		speechNowPlayingPresenter = SpeechNowPlayingPresenter()
 
 		DispatchQueue.main.async {
 			self.unreadCount = AccountManager.shared.unreadCount

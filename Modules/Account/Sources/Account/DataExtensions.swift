@@ -60,4 +60,16 @@ public extension Article {
 	@MainActor var feed: Feed? {
 		return account?.existingFeed(withFeedID: feedID)
 	}
+
+	/// Best-effort artwork URL for the article: the article's own image if
+	/// present, otherwise the parent feed's icon, otherwise nil.
+	@MainActor var preferredArtworkURL: URL? {
+		if let raw = rawImageLink, let url = URL(string: raw) {
+			return url
+		}
+		if let raw = feed?.iconURL, let url = URL(string: raw) {
+			return url
+		}
+		return nil
+	}
 }

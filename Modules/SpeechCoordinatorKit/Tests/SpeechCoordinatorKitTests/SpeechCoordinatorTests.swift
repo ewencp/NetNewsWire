@@ -37,13 +37,19 @@ struct SpeechCoordinatorTests {
 		let mock = MockSpeechSynth()
 		let coordinator = SpeechCoordinator(synth: mock)
 		let article = makeArticle(id: "a1", title: "Title")
-		coordinator.startPlayback(for: article, sourceHTML: "<p>Hello.</p>")
+		coordinator.startPlayback(
+			for: article,
+			sourceHTML: "<p>Hello.</p>",
+			feedName: "Test Feed",
+			imageURL: nil
+		)
 		// Allow the Task inside startPlayback to drain.
 		try await Task.sleep(nanoseconds: 100_000_000)
 		#expect(mock.playCount == 1)
 		#expect(mock.lastBlocks == [SpeechBlock(text: "Hello.", kind: .paragraph)])
-		#expect(coordinator.playingArticleID == "a1")
-		#expect(coordinator.playingArticleTitle == "Title")
+		#expect(coordinator.playingItem?.articleID == "a1")
+		#expect(coordinator.playingItem?.title == "Title")
+		#expect(coordinator.playingItem?.feedName == "Test Feed")
 	}
 
 	@Test func togglePlayPauseWhileSpeakingPauses() {
@@ -70,14 +76,19 @@ struct SpeechCoordinatorTests {
 		#expect(mock.resumeCount == 0)
 	}
 
-	@Test func finishedClearsPlayingArticleID() async throws {
+	@Test func finishedClearsPlayingItem() async throws {
 		let mock = MockSpeechSynth()
 		let coordinator = SpeechCoordinator(synth: mock)
 		let article = makeArticle(id: "a1", title: "T")
-		coordinator.startPlayback(for: article, sourceHTML: "<p>X.</p>")
+		coordinator.startPlayback(
+			for: article,
+			sourceHTML: "<p>X.</p>",
+			feedName: nil,
+			imageURL: nil
+		)
 		try await Task.sleep(nanoseconds: 100_000_000)
 		mock.simulateStateChange(.finished)
-		#expect(coordinator.playingArticleID == nil)
+		#expect(coordinator.playingItem == nil)
 		#expect(coordinator.state == .finished)
 	}
 

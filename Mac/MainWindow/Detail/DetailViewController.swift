@@ -121,7 +121,7 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 
 	private func refreshSpeechIfNeededForState(_ state: DetailState) {
 		let coordinator = SpeechCoordinator.shared
-		guard coordinator.state.isActive, let playingID = coordinator.playingArticleID else {
+		guard coordinator.state.isActive, let playingID = coordinator.playingItem?.articleID else {
 			return
 		}
 		let updatedSource: (Article, String)?
@@ -139,7 +139,13 @@ final class DetailViewController: NSViewController, WKUIDelegate {
 		// Preserve the user's paused state across the content swap.
 		let wasPaused: Bool
 		if case .paused = coordinator.state { wasPaused = true } else { wasPaused = false }
-		coordinator.startPlayback(for: article, sourceHTML: sourceHTML, keepPaused: wasPaused)
+		coordinator.startPlayback(
+			for: article,
+			sourceHTML: sourceHTML,
+			feedName: article.feed?.nameForDisplay,
+			imageURL: article.preferredArtworkURL,
+			keepPaused: wasPaused
+		)
 	}
 
 	func showDetail(for mode: TimelineSourceMode) {
@@ -255,7 +261,7 @@ extension DetailViewController: SpeechCoordinatorObserver {
 		let height: CGFloat = shouldShow ? 108 : 0
 		speechTransportBarHeightConstraint?.constant = height
 		speechTransportBar.isHidden = !shouldShow
-		speechTransportBar.update(state: coordinator.state, title: coordinator.playingArticleTitle)
+		speechTransportBar.update(state: coordinator.state, title: coordinator.playingItem?.title)
 		// Inset the article content area so the bar doesn't overlay the last lines.
 		containerView.contentBottomInset = height
 		NSAnimationContext.runAnimationGroup { context in

@@ -2,30 +2,27 @@
 import PackageDescription
 
 let package = Package(
-	name: "AppleSpeechKit",
+	name: "AudioPlayerKit",
 	platforms: [.macOS(.v15), .iOS(.v17)],
 	products: [
 		.library(
-			name: "AppleSpeechKit",
+			name: "AudioPlayerKit",
 			type: .dynamic,
-			targets: ["AppleSpeechKit"])
+			targets: ["AudioPlayerKit"])
 	],
-	dependencies: [
-		.package(path: "../ArticleSpeech"),
-		.package(path: "../AudioPlayerKit")
-	],
+	dependencies: [],
 	targets: [
 		.target(
-			name: "AppleSpeechKit",
-			dependencies: ["ArticleSpeech", "AudioPlayerKit"],
+			name: "AudioPlayerKit",
+			dependencies: [],
 			swiftSettings: [
 				.enableUpcomingFeature("NonisolatedNonsendingByDefault"),
 				.enableUpcomingFeature("InferIsolatedConformances")
 			]
 		),
 		.testTarget(
-			name: "AppleSpeechKitTests",
-			dependencies: ["AppleSpeechKit", "ArticleSpeech"]
+			name: "AudioPlayerKitTests",
+			dependencies: ["AudioPlayerKit"]
 		)
 	]
 )
