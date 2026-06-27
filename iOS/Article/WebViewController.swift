@@ -116,6 +116,14 @@ final class WebViewController: UIViewController {
 		}
 	}
 
+	override func viewWillDisappear(_ animated: Bool) {
+		super.viewWillDisappear(animated)
+		// Pause in-flight media before the view goes away. Leaving a video playing during
+		// dismissal lets WebKit's full-screen entry continuation fire on a stale view
+		// hierarchy and trip a RELEASE_ASSERT in WebFullScreenManagerProxy on iOS 26.
+		stopWebViewActivity()
+	}
+
 	// MARK: Notifications
 
 	@objc func feedIconDidBecomeAvailable(_ note: Notification) {
@@ -236,14 +244,15 @@ final class WebViewController: UIViewController {
 		loadWebView(replaceExistingWebView: true)
 	}
 
-	func showBars() {
+	func showBars(animated: Bool = true) {
 		AppDefaults.shared.articleFullscreenEnabled = false
 		coordinator.showStatusBar()
 		topShowBarsViewConstraint?.constant = 0
 		bottomShowBarsViewConstraint?.constant = 0
-		navigationController?.setNavigationBarHidden(false, animated: true)
-		navigationController?.setToolbarHidden(false, animated: true)
+		navigationController?.setNavigationBarHidden(false, animated: animated)
+		navigationController?.setToolbarHidden(false, animated: animated)
 		additionalSafeAreaInsets.bottom = 0
+		setBottomScrollEdgeEffectHidden(false)
 		configureContextMenuInteraction()
 	}
 
@@ -255,7 +264,7 @@ final class WebViewController: UIViewController {
 			bottomShowBarsViewConstraint?.constant = 44.0
 			navigationController?.setNavigationBarHidden(true, animated: true)
 			navigationController?.setToolbarHidden(true, animated: true)
-			updateBottomSafeAreaForFullScreen()
+			setBottomScrollEdgeEffectHidden(true)
 			configureContextMenuInteraction()
 		}
 	}
@@ -888,6 +897,22 @@ private extension WebViewController {
 	func updateBottomSafeAreaForFullScreen() {
 		let rawBottom = view.safeAreaInsets.bottom - additionalSafeAreaInsets.bottom
 		additionalSafeAreaInsets.bottom = -rawBottom
+	}
+
+	/// Hide or show the toolbar scroll edge effect at the bottom of the web view.
+	///
+	/// Hidden when entering fullscreen so a residual effect doesn't obscure the
+	/// bottom of the article.
+	///
+	/// <https://github.com/Ranchero-Software/NetNewsWire/issues/5298>
+	func setBottomScrollEdgeEffectHidden(_ hidden: Bool) {
+		guard #available(iOS 26, *) else {
+			return
+		}
+		guard let scrollView = webView?.scrollView else {
+			return
+		}
+		scrollView.bottomEdgeEffect.isHidden = hidden
 	}
 
 	func configureContextMenuInteraction() {

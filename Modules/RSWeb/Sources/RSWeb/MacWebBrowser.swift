@@ -146,13 +146,9 @@ import UniformTypeIdentifiers
 		return _bundleIdentifier
 	}
 
-	private lazy var _bundlePath: String? = {
-		return Bundle(url: url)?.bundlePath
-	}()
-
-	/// The bundle path of the web browser
-	public var bundlePath: String? {
-		return _bundlePath
+	/// The bundle path of the web browser.
+	public var bundlePath: String {
+		url.path
 	}
 
 	/// Initializes a `MacWebBrowser` with a URL on disk.
@@ -169,6 +165,16 @@ import UniformTypeIdentifiers
 		}
 
 		self.init(url: url)
+	}
+
+	/// Initializes a `MacWebBrowser` from a path.
+	/// - Parameter path: Path to the app, as in `/Applications/Firefox.app`.
+	/// - Returns: `nil` if nothing exists at `path`.
+	public convenience init?(path: String) {
+		guard FileManager.default.fileExists(atPath: path) else {
+			return nil
+		}
+		self.init(url: URL(fileURLWithPath: path))
 	}
 
 	/// Opens a URL in this browser.

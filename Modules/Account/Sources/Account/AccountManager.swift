@@ -15,7 +15,7 @@ import ArticlesDatabase
 import ErrorLog
 
 @MainActor public final class AccountManager: UnreadCountProvider {
-	
+
 	public static var shared = AccountManager()
 
 	public static let netNewsWireNewsURL = ""
@@ -661,4 +661,3 @@ private struct AccountSpecifier {
 		return NSString(string: folderPath).appendingPathComponent(accountDataFileName)
 	}
 }
-

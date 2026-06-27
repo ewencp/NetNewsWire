@@ -35,6 +35,8 @@ final class ArticleViewController: UIViewController {
 	private var defaultControls: [UIBarButtonItem]?
 
 	private var pageViewController: UIPageViewController!
+	private var isPageTransitionInProgress = false
+	private var pendingSetViewController: WebViewController?
 
 	private var currentWebViewController: WebViewController? {
 		return pageViewController?.viewControllers?.first as? WebViewController
@@ -86,10 +88,17 @@ final class ArticleViewController: UIViewController {
 
 			if let controller = currentWebViewController, controller.article != article {
 				controller.setArticle(article)
-				DispatchQueue.main.async {
-					// You have to set the view controller to clear out the UIPageViewController child controller cache.
-					// You also have to do it in an async call or you will get a strange assertion error.
-					self.pageViewController.setViewControllers([controller], direction: .forward, animated: false, completion: nil)
+				if isPageTransitionInProgress {
+					// Calling setViewControllers during an active page transition trips a UIPageViewController
+					// internal assertion (NSInternalInconsistencyException) and crashes the app. Stash the
+					// controller and flush it from didFinishAnimating once the transition has ended.
+					pendingSetViewController = controller
+				} else {
+					DispatchQueue.main.async {
+						// You have to set the view controller to clear out the UIPageViewController child controller cache.
+						// You also have to do it in an async call or you will get a strange assertion error.
+						self.pageViewController.setViewControllers([controller], direction: .forward, animated: false, completion: nil)
+					}
 				}
 			}
 			updateUI()
@@ -265,7 +274,9 @@ final class ArticleViewController: UIViewController {
 			endFind()
 			searchBar.shouldBeginEditing = false
 		}
-		currentWebViewController?.showBars()
+		// Pass animated: false — animating the nav bar / toolbar visibility change during the
+		// disappear transition triggers an Auto Layout assertion (NSISEngine) and crashes.
+		currentWebViewController?.showBars(animated: false)
 	}
 
 	override func viewSafeAreaInsetsDidChange() {
@@ -553,7 +564,18 @@ extension ArticleViewController: UIPageViewControllerDataSource {
 
 extension ArticleViewController: UIPageViewControllerDelegate {
 
+	func pageViewController(_ pageViewController: UIPageViewController, willTransitionTo pendingViewControllers: [UIViewController]) {
+		isPageTransitionInProgress = true
+	}
+
 	func pageViewController(_ pageViewController: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
+		isPageTransitionInProgress = false
+
+		if let pending = pendingSetViewController {
+			pendingSetViewController = nil
+			pageViewController.setViewControllers([pending], direction: .forward, animated: false, completion: nil)
+		}
+
 		guard finished, completed else { return }
 		guard let article = currentWebViewController?.article else { return }
 

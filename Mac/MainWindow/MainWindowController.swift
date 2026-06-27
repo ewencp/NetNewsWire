@@ -111,9 +111,7 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 
 		detailViewController = splitViewController?.splitViewItems[2].viewController as? DetailViewController
 
-		if #available(macOS 26.0, *) {
-			// On macOS 26, Liquid Glass handles the toolbar/content boundary.
-		} else {
+		if #unavailable(macOS 26.0) {
 			splitViewController?.splitViewItems[2].titlebarSeparatorStyle = .line
 		}
 
@@ -974,6 +972,10 @@ extension MainWindowController: ScriptingMainWindowController {
 
     var scriptingSelectedArticles: [Article] {
         selectedArticles ?? []
+    }
+
+    var scriptingSelectedFeeds: [Feed] {
+        selectedObjectsInSidebar()?.compactMap { $0 as? Feed } ?? []
     }
 }
 
