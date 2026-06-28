@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import Images
 
 final class IconView: NSView {
 
@@ -15,20 +16,22 @@ final class IconView: NSView {
 			if iconImage !== oldValue {
 				imageView.image = iconImage?.image
 				if let tintColor = iconImage?.preferredColor {
-					imageView.contentTintColor = NSColor(cgColor: tintColor)
+					imageView.contentTintColor = tintColor
 				}
 
-				if NSApplication.shared.effectiveAppearance.isDarkMode {
-					if self.iconImage?.isDark ?? false {
-						self.isDiscernable = false
+				if iconImage?.isBackgroundSuppressed ?? false {
+					isDiscernable = true
+				} else if NSApplication.shared.effectiveAppearance.isDarkMode {
+					if iconImage?.isDark ?? false {
+						isDiscernable = false
 					} else {
-						self.isDiscernable = true
+						isDiscernable = true
 					}
 				} else {
-					if self.iconImage?.isBright ?? false {
-						self.isDiscernable = false
+					if iconImage?.isBright ?? false {
+						isDiscernable = false
 					} else {
-						self.isDiscernable = true
+						isDiscernable = true
 					}
 				}
 
@@ -40,7 +43,7 @@ final class IconView: NSView {
 
 	private var isDiscernable = true
 
-	override var isFlipped: Bool {
+	nonisolated override var isFlipped: Bool {
 		return true
 	}
 
@@ -83,7 +86,7 @@ final class IconView: NSView {
 	}
 
 	override func resizeSubviews(withOldSize oldSize: NSSize) {
-		imageView.setFrame(ifNotEqualTo: rectForImageView())
+		imageView.setFrameIfNotEqual(rectForImageView())
 	}
 
 	override func draw(_ dirtyRect: NSRect) {

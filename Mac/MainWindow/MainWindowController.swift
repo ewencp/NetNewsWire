@@ -137,6 +137,10 @@ final class MainWindowController: NSWindowController, NSUserInterfaceValidations
 		return sidebarViewController?.selectedObjects
 	}
 
+	func selectFeedInSidebar(_ feed: Feed) {
+		sidebarViewController?.selectFeed(feed)
+	}
+
 	func handle(_ response: UNNotificationResponse) {
 		let userInfo = response.notification.request.content.userInfo
 		guard let articlePathUserInfo = userInfo[UserInfoKey.articlePath] as? [AnyHashable: Any] else { return }
@@ -1022,7 +1026,7 @@ extension MainWindowController: NSToolbarDelegate {
 			return toolbarItem
 
 		case .markAllAsRead:
-			let title = NSLocalizedString("Mark All as Read", comment: "Mark All as Read")
+			let title = NSLocalizedString("Mark All as Read", comment: "Command")
 			return buildToolbarButton(.markAllAsRead, title, Assets.Images.markAllAsRead, "markAllAsRead:")
 
 		case .toggleReadArticlesFilter:
@@ -1033,7 +1037,7 @@ extension MainWindowController: NSToolbarDelegate {
 			return NSTrackingSeparatorToolbarItem(identifier: .timelineTrackingSeparator, splitView: splitViewController!.splitView, dividerIndex: 1)
 
 		case .markRead:
-			let title = NSLocalizedString("Mark Read", comment: "Mark Read")
+			let title = NSLocalizedString("Mark Read", comment: "command")
 			return buildToolbarButton(.markRead, title, Assets.Images.readClosed, "toggleRead:")
 
 		case .markStar:
@@ -1107,11 +1111,11 @@ extension MainWindowController: NSToolbarDelegate {
 			return toolbarItem
 
 		case .share:
-			let title = NSLocalizedString("Share", comment: "Share")
+			let title = NSLocalizedString("Share", comment: "Share button")
 			return buildToolbarButton(.share, title, Assets.Images.share, "toolbarShowShareMenu:")
 
 		case .openInBrowser:
-			let title = NSLocalizedString("Open in Browser", comment: "Open in Browser")
+			let title = NSLocalizedString("Open in Browser", comment: "Command")
 			return buildToolbarButton(.openInBrowser, title, Assets.Images.openInBrowser, "openArticleInBrowser:")
 
 		case .articleThemeMenu:
@@ -1129,7 +1133,7 @@ extension MainWindowController: NSToolbarDelegate {
 			return toolbarItem
 
 		case .cleanUp:
-			let title = NSLocalizedString("Clean Up", comment: "Clean Up")
+			let title = NSLocalizedString("Clean Up", comment: "Clean Up button")
 			return buildToolbarButton(.cleanUp, title, Assets.Images.cleanUp, "cleanUp:")
 
 		default:

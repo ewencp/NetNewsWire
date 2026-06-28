@@ -15,6 +15,7 @@ import RSCore
 import RSTree
 import SafariServices
 import SwiftUI
+import Images
 
 enum SearchScope: Int {
 	case timeline = 0
@@ -1359,6 +1360,15 @@ struct SidebarItemNode: Hashable, Sendable {
 		rootSplitViewController.present(settingsNavController, animated: true)
 	}
 
+	func showCurrentActivity() {
+		let hostingController = UIHostingController(rootView: NavigationStack { CurrentActivityView() })
+		if let sheet = hostingController.sheetPresentationController {
+			sheet.detents = [.medium(), .large()]
+			sheet.prefersGrabberVisible = true
+		}
+		rootSplitViewController.present(hostingController, animated: true)
+	}
+
 	func showAccountInspector(for account: Account) {
 		let accountInspectorNavController =
 			UIStoryboard.inspector.instantiateViewController(identifier: "AccountInspectorNavigationViewController") as! UINavigationController
@@ -1420,9 +1430,10 @@ struct SidebarItemNode: Hashable, Sendable {
 		let imageVC = UIStoryboard.main.instantiateController(ofType: ImageViewController.self)
 		imageVC.image = image
 		imageVC.imageTitle = imageTitle
-		imageVC.modalPresentationStyle = .currentContext
-		imageVC.transitioningDelegate = transitioningDelegate
-		rootSplitViewController.present(imageVC, animated: true)
+		let navController = UINavigationController(rootViewController: imageVC)
+		navController.modalPresentationStyle = .currentContext
+		navController.transitioningDelegate = transitioningDelegate
+		rootSplitViewController.present(navController, animated: true)
 	}
 
 	func homePageURLForFeed(_ indexPath: IndexPath) -> URL? {
@@ -2126,6 +2137,7 @@ private extension SceneCoordinator {
 			}
 
 			updateShowNamesAndIcons()
+			IconImageCache.shared.prefetchImagesForArticles(articles)
 			updateUnreadCount()
 			mainTimelineViewController?.reloadArticles(animated: animated)
 		}

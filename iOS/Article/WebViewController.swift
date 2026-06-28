@@ -18,6 +18,7 @@ import ArticleSpeech
 import SpeechCoordinatorKit
 import SafariServices
 import MessageUI
+import Images
 
 @MainActor protocol WebViewControllerDelegate: AnyObject {
 	func webViewController(_: WebViewController, articleExtractorButtonStateDidUpdate: ArticleExtractorButtonState)
@@ -101,6 +102,7 @@ final class WebViewController: UIViewController {
 		NotificationCenter.default.addObserver(self, selector: #selector(avatarDidBecomeAvailable(_:)), name: .AvatarDidBecomeAvailable, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(faviconDidBecomeAvailable(_:)), name: .FaviconDidBecomeAvailable, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(currentArticleThemeDidChangeNotification(_:)), name: .CurrentArticleThemeDidChangeNotification, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleSceneDidEnterBackground(_:)), name: UIScene.didEnterBackgroundNotification, object: nil)
 
 		// Configure the tap zones
 		configureTopShowBarsView()
@@ -125,6 +127,15 @@ final class WebViewController: UIViewController {
 	}
 
 	// MARK: Notifications
+
+	@objc func handleSceneDidEnterBackground(_ notification: Notification) {
+		// The share sheet is a popover on iPad. Opening the article in another browser
+		// from it backgrounds NetNewsWire mid-presentation, orphaning the popover so it
+		// can't be dismissed by tapping outside on return. Dismiss it on backgrounding. (#4269)
+		if presentedViewController is UIActivityViewController {
+			dismiss(animated: false)
+		}
+	}
 
 	@objc func feedIconDidBecomeAvailable(_ note: Notification) {
 		reloadArticleImage()
@@ -820,8 +831,8 @@ private extension WebViewController {
 
 		guard let imageURL = URL(string: clickMessage.imageURL) else { return }
 
-		Downloader.shared.download(imageURL) { [weak self] data, _, error in
-			guard let self, let data, error == nil, !data.isEmpty,
+		Downloader.shared.download(imageURL) { [weak self] downloadResponse, error in
+			guard let self, let data = downloadResponse.data, error == nil, !data.isEmpty,
 				  let image = UIImage(data: data) else {
 				return
 			}
@@ -950,7 +961,7 @@ private extension WebViewController {
 	func toggleReadAction() -> UIAction? {
 		guard let article = article, !article.status.read || article.isAvailableToMarkUnread else { return nil }
 
-		let title = article.status.read ? NSLocalizedString("Mark as Unread", comment: "Mark as Unread") : NSLocalizedString("Mark as Read", comment: "Mark as Read")
+		let title = article.status.read ? NSLocalizedString("Mark as Unread", comment: "Command") : NSLocalizedString("Mark as Read", comment: "Command")
 		let readImage = article.status.read ? Assets.Images.circleClosed : Assets.Images.circleOpen
 		return UIAction(title: title, image: readImage) { [weak self] _ in
 			self?.coordinator.toggleReadForCurrentArticle()
@@ -959,7 +970,7 @@ private extension WebViewController {
 
 	func toggleStarredAction() -> UIAction {
 		let starred = article?.status.starred ?? false
-		let title = starred ? NSLocalizedString("Mark as Unstarred", comment: "Mark as Unstarred") : NSLocalizedString("Mark as Starred", comment: "Mark as Starred")
+		let title = starred ? NSLocalizedString("Mark as Unstarred", comment: "Command") : NSLocalizedString("Mark as Starred", comment: "Command")
 		let starredImage = starred ? Assets.Images.starOpen : Assets.Images.starClosed
 		return UIAction(title: title, image: starredImage) { [weak self] _ in
 			self?.coordinator.toggleStarredForCurrentArticle()
@@ -984,7 +995,7 @@ private extension WebViewController {
 	}
 
 	func shareAction() -> UIAction {
-		let title = NSLocalizedString("Share", comment: "Share")
+		let title = NSLocalizedString("Share", comment: "Share button")
 		return UIAction(title: title, image: Assets.Images.share) { [weak self] _ in
 			self?.showActivityDialog()
 		}

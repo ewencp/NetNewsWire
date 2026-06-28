@@ -1,8 +1,77 @@
 # iOS Release Notes
 
+### 7.1 build 7105 23 June 2026 - branch: main tag: iOS-7.1-7105
+
+Exclude dinosaurs that have no articles in the database — we might just not have those articles yet
+
+### 7.1 build 7104 22 June 2026 - branch: main tag: iOS-7.1-7104
+
+Made timeline scrolling faster and smoother
+Fixed bug (introduced in 7.0.6) where newly-arrived articles weren’t added to the search index
+Fixed a memory leak
+
+### 7.1 build 7103 18 June 2026 - branch: main tag: iOS-7.1-7103
+
+Added contextual menus to copy the home page URL and feed URL in the feed inspector
+Added an accessibility action to expand and collapse folders on the Feeds screen
+Added more detail to the Activity Log: download sizes for image and HTML‑metadata downloads, and a note when a download was served from the cache (instead of over the web)
+
+### 7.1 build 7102 16 June 2026 - branch: main tag: iOS-7.1-7102
+
+Added more activities and detail to the Activity Log and Current Activity screens
+Fixed a performance issue with the Activity Log
+Fixed a memory use issue with marking read/unread/starred/unstarred
+Reduced disk writes while syncing article statuses
+Fixed a hang that could happen when encoding widget data
+Fixed a crash that could happen when deleting Feedly folders
+Fixed a crash that could happen when building notification thumbnails
+
+### 7.1 build 7101 12 June 2026 - branch: main tag: iOS-7.1-7101
+
+Changes since 7.0.6:
+
+Added Activity Log to Settings. It shows what the app has been doing <https://netnewswire.com/help/activity-log.html>
+Added Current Activity — open via new icon lower-left on Feeds screen. It shows what the app is doing right now <https://netnewswire.com/help/current-activity.html>
+Added Account Stats to Settings. It shows per-account article and status counts and database sizes, and includes a Vacuum Databases button <https://netnewswire.com/help/account-stats.html>
+Added 🦖 Dinosaurs to Settings. It lists feeds that haven’t published in a while (you pick the number of months) <https://netnewswire.com/help/dinosaurs.html>
+Started deleting feeds and folders optimistically from iCloud — the sidebar updates immediately instead of waiting for the server
+Fixed bug where iCloud feed renames could fail on transient network errors — they’re now retried
+Started backing off Feedly status sync to 30 minutes between checks when the last sync had no changes, and waking it immediately when you mark articles read or unread
+Started handling transient feed-refresh failures (DNS, certificate, etc.) by retrying after a few hours instead of treating them as permanent failures
+Fixed bug parsing feeds where a title (or other tag) without a prefix appears inside a namespaced section (`<s:variant>`, for instance)
+Fixed bug where feed icons didn’t always appear promptly in the sidebar
+Added more trackers to the block list
+Started saving the response code for 4xx and 5xx responses so the error log shows the right info
+Moved the Confirm Mark All as Read setting to Timeline settings, where it belongs
+Fixed bug where the share sheet could get stuck after switching to another app and back
+Fixed image-viewer layout so the close and share buttons line up correctly on iPad
+Replaced Helvetica with the system font in the timeline subtitle
+Fixed a crash during article page transitions
+Fixed a crash when dismissing the search bar on iOS 26
+Fixed a navigation-bar crash on iOS 26
+Fixed a crash caused by a dangling reference
+
 ### 7.0.6 build 7058 23 May 2026 — branch: main tag: iOS-7.0.6-7058
 
+This was originally a TestFlight release. It was submitted to the App Store as the 7.0.6 release version on 26 May 2026.
+
+Changes in this build:
+
 Fixed bug, introduced in the previous beta, where the bottom of the article view could turn low-res and weird
+
+Changes since 7.0.5:
+
+Made timeline fetches faster
+Improved footnote layout in the article view
+Lowered memory use by shrinking the Downloader cache
+Fixed bug where the scroll edge effect could obscure the bottom of the fullscreen article view
+Fixed iPhone crash when going to Next Unread across feeds
+Fixed crash when changing articles during a page transition
+Fixed WebKit crash with fullscreen video content
+Fixed layout-loop crash in the timeline
+Fixed crash when dismissing an article view while toolbars were animating
+Lowered the minimum time between feed refreshes from 29 minutes to 9 minutes
+Started respecting Cache-Control headers (when present) for minimum time between feed refreshes (with a limit of 5 hours as the maximum minimum)
 
 ### 7.0.6 build 7056 22 May 2026 — branch: main tag: iOS-7.0.6-7056
 

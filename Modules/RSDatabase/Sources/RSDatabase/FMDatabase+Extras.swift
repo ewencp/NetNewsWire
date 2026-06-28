@@ -15,6 +15,9 @@ public extension FMDatabase {
 		let database = FMDatabase(path: path)!
 
 		database.open()
+		// All databases are single-connection and serialized — WAL gains us nothing
+		// and produces extra -wal/-shm files that bloat on disk.
+		database.executeStatements("PRAGMA journal_mode = DELETE;")
 		database.executeStatements("PRAGMA synchronous = 1;")
 		database.setShouldCacheStatements(true)
 
@@ -38,6 +41,22 @@ public extension FMDatabase {
 		executeStatements("vacuum;")
 		let duration = Date().timeIntervalSince(start)
 		Self.logger.debug("VACUUM \(path, privacy: .public) took \(duration, format: .fixed(precision: 4), privacy: .public) seconds")
+	}
+
+	/// Vacuum if at least `daysBetweenVacuums` have passed since last time.
+	/// The last vacuum date is stored in the database.
+	func vacuumIfNeeded(daysBetweenVacuums: Int = RSDatabaseInfoTable.defaultDaysBetweenVacuums) {
+		RSDatabaseInfoTable.createTableIfNeeded(database: self)
+
+		if let lastVacuumDate = RSDatabaseInfoTable.lastVacuumDate(database: self) {
+			let secondsBetweenVacuums = TimeInterval(daysBetweenVacuums) * 24 * 60 * 60
+			if Date().timeIntervalSince(lastVacuumDate) < secondsBetweenVacuums {
+				return
+			}
+		}
+
+		vacuum()
+		RSDatabaseInfoTable.setLastVacuumDate(Date(), database: self)
 	}
 
 	func runCreateStatements(_ statements: String) {
@@ -73,6 +92,10 @@ public extension FMDatabase {
 
 	func deleteRowsWhere(key: String, equalsAnyValue values: [Any], tableName: String) {
 		rs_deleteRowsWhereKey(key, inValues: values, tableName: tableName)
+	}
+
+	func deleteRowsWhere(key: String, equals value: Any, tableName: String) {
+		rs_deleteRowsWhereKey(key, equalsValue: value, tableName: tableName)
 	}
 
 	func selectRowsWhere(key: String, equalsAnyValue values: [Any], tableName: String) -> FMResultSet? {
